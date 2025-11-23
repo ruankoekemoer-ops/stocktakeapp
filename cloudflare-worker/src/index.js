@@ -346,6 +346,34 @@ export default {
         });
       }
 
+      // Get single stock take by ID
+      if (path.startsWith('/api/stock-takes/') && !path.endsWith('/close') && request.method === 'GET') {
+        const id = path.split('/').pop();
+        
+        const stockTake = await env.DB.prepare(
+          `SELECT st.*, 
+            c.company_name, 
+            w.warehouse_name,
+            m.manager_name as opened_by_name
+          FROM stock_takes st
+          LEFT JOIN companies c ON st.company_id = c.id
+          LEFT JOIN warehouses w ON st.warehouse_id = w.id
+          LEFT JOIN warehouse_managers m ON st.opened_by_manager_id = m.id
+          WHERE st.id = ?`
+        ).bind(id).first();
+        
+        if (!stockTake) {
+          return new Response(JSON.stringify({ error: 'Stock take not found' }), {
+            status: 404,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        return new Response(JSON.stringify(stockTake), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       // Get active (open) stock take for warehouse/company
       if (path === '/api/stock-takes/active' && request.method === 'GET') {
         const companyId = url.searchParams.get('company_id');

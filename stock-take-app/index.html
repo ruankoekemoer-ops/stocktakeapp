@@ -7,26 +7,55 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <div class="container">
+    <!-- Role Selection Screen (shown first) -->
+    <div id="roleSelectionScreen" class="role-selection-screen">
+        <div class="role-selection-card">
+            <h1>📦 Stock Take Management System</h1>
+            <p class="subtitle">Select your role to continue</p>
+            <div class="role-options">
+                <button onclick="selectRole('counter')" class="role-option-btn counter-btn">
+                    <div class="role-icon">📱</div>
+                    <h2>Counter</h2>
+                    <p>Scan and count inventory items</p>
+                </button>
+                <button onclick="selectRole('manager')" class="role-option-btn manager-btn">
+                    <div class="role-icon">⚙️</div>
+                    <h2>Manager</h2>
+                    <p>Manage companies, warehouses, and view reports</p>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App (hidden until role selected) -->
+    <div id="mainApp" class="container" style="display: none;">
         <header>
             <h1>📦 Stock Take Management System</h1>
-            <p class="subtitle">Scan, count, and submit inventory</p>
+            <p class="subtitle" id="roleSubtitle">Scan, count, and submit inventory</p>
+            <button onclick="switchRole()" class="btn btn-secondary btn-small" style="margin-top: 10px;">Switch Role</button>
         </header>
 
-        <!-- Role Selector -->
-        <div class="role-selector">
-            <button onclick="setRole('counter')" class="role-btn" id="counterRoleBtn">📱 Counter Mode</button>
-            <button onclick="setRole('manager')" class="role-btn active" id="managerRoleBtn">⚙️ Manager Mode</button>
-        </div>
-
         <nav class="tabs" id="mainTabs">
-            <button class="tab-btn active" onclick="showTab('setup')" id="setupTabBtn" style="display: none;">Setup</button>
-            <button class="tab-btn" onclick="showTab('stocktake')" id="stocktakeTabBtn">Stock Take</button>
-            <button class="tab-btn" onclick="showTab('view')" id="viewTabBtn" style="display: none;">View Items</button>
+            <button class="tab-btn active" onclick="showTab('stocktake', this)" id="stocktakeTabBtn">Stock Take</button>
+            <button class="tab-btn" onclick="showTab('openStockTakes', this)" id="openStockTakesTabBtn">Open Stock Takes</button>
+            <button class="tab-btn" onclick="showTab('setup', this)" id="setupTabBtn" style="display: none;">Setup</button>
+            <button class="tab-btn" onclick="showTab('view', this)" id="viewTabBtn" style="display: none;">View Items</button>
         </nav>
 
-        <!-- Setup Tab - Single Company Settings Screen -->
-        <div id="setupTab" class="tab-content active">
+        <!-- Open Stock Takes Tab -->
+        <div id="openStockTakesTab" class="tab-content">
+            <div class="view-container">
+                <div class="view-header">
+                    <h2>Open Stock Takes</h2>
+                    <button onclick="loadOpenStockTakes()" class="btn btn-secondary">Refresh</button>
+                </div>
+                <div id="openStockTakesList" class="items-list"></div>
+                <div id="noOpenStockTakes" class="no-items" style="display: none;">No open stock takes found.</div>
+            </div>
+        </div>
+
+        <!-- Setup Tab - Single Company Settings Screen (Manager Only) -->
+        <div id="setupTab" class="tab-content">
             <div class="setup-container">
                 <!-- Company Selection -->
                 <div class="company-selector-section">

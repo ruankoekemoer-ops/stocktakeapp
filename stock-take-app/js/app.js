@@ -18,9 +18,26 @@ let currentRole = 'manager'; // 'counter' or 'manager'
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Stock Take Management System initialized');
     
-    // Initialize role (check localStorage or default to manager)
-    const savedRole = localStorage.getItem('stockTakeRole') || 'manager';
-    setRole(savedRole, false); // false = don't save to localStorage (already set)
+    // Check if role is already selected
+    const savedRole = localStorage.getItem('stockTakeRole');
+    
+    if (!savedRole) {
+        // Show role selection screen
+        document.getElementById('roleSelectionScreen').style.display = 'flex';
+        document.getElementById('mainApp').style.display = 'none';
+    } else {
+        // Hide role selection, show main app
+        document.getElementById('roleSelectionScreen').style.display = 'none';
+        document.getElementById('mainApp').style.display = 'block';
+        initializeApp(savedRole);
+    }
+});
+
+function initializeApp(role) {
+    currentRole = role;
+    
+    // Update UI based on role
+    setRole(role, false); // Don't save (already saved)
     
     // Load initial data
     loadCompanies().then(() => {
@@ -34,19 +51,34 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
     
-    // Load items if on view tab
-    if (document.getElementById('viewTab')?.classList.contains('active')) {
-        loadItems();
+    // Load open stock takes if in counter mode
+    if (role === 'counter') {
+        loadOpenStockTakes();
     }
     
-    // Initialize stock take status (but don't call checkActiveStockTake here as it may cause initialization errors)
-    // Status will be updated when switching to stock take tab
+    // Initialize stock take status
     setTimeout(() => {
         if (document.getElementById('stocktakeTab')?.classList.contains('active')) {
             updateStockTakeStatus();
         }
     }, 100);
-});
+}
+
+function selectRole(role) {
+    localStorage.setItem('stockTakeRole', role);
+    document.getElementById('roleSelectionScreen').style.display = 'none';
+    document.getElementById('mainApp').style.display = 'block';
+    initializeApp(role);
+}
+window.selectRole = selectRole;
+
+function switchRole() {
+    if (confirm('Switch to a different role? This will reload the app.')) {
+        localStorage.removeItem('stockTakeRole');
+        location.reload();
+    }
+}
+window.switchRole = switchRole;
 
 // ========== ROLE MANAGEMENT ==========
 function setRole(role, saveToStorage = true) {
@@ -56,31 +88,40 @@ function setRole(role, saveToStorage = true) {
         localStorage.setItem('stockTakeRole', role);
     }
     
-    // Update role buttons
-    document.getElementById('counterRoleBtn').classList.toggle('active', role === 'counter');
-    document.getElementById('managerRoleBtn').classList.toggle('active', role === 'manager');
+    // Update subtitle
+    const subtitle = document.getElementById('roleSubtitle');
+    if (subtitle) {
+        subtitle.textContent = role === 'counter' 
+            ? 'Scan, count, and submit inventory' 
+            : 'Manage companies, warehouses, and view reports';
+    }
     
     // Show/hide tabs based on role
     const setupTabBtn = document.getElementById('setupTabBtn');
     const viewTabBtn = document.getElementById('viewTabBtn');
     const stocktakeTabBtn = document.getElementById('stocktakeTabBtn');
+    const openStockTakesTabBtn = document.getElementById('openStockTakesTabBtn');
     
     if (role === 'counter') {
-        // Counter mode: Only show Stock Take tab
+        // Counter mode: Only show Stock Take and Open Stock Takes tabs (NO SETUP OR VIEW)
         if (setupTabBtn) setupTabBtn.style.display = 'none';
         if (viewTabBtn) viewTabBtn.style.display = 'none';
-        if (stocktakeTabBtn) {
-            stocktakeTabBtn.style.display = 'inline-block';
-            // Switch to stock take tab if not already there
-            if (!document.getElementById('stocktakeTab').classList.contains('active')) {
-                showTab('stocktake');
-            }
+        if (stocktakeTabBtn) stocktakeTabBtn.style.display = 'inline-block';
+        if (openStockTakesTabBtn) openStockTakesTabBtn.style.display = 'inline-block';
+        
+        // Switch to stock take tab
+        if (!document.getElementById('stocktakeTab').classList.contains('active')) {
+            showTab('stocktake');
         }
+        
+        // Load open stock takes
+        loadOpenStockTakes();
     } else {
         // Manager mode: Show all tabs
         if (setupTabBtn) setupTabBtn.style.display = 'inline-block';
         if (viewTabBtn) viewTabBtn.style.display = 'inline-block';
         if (stocktakeTabBtn) stocktakeTabBtn.style.display = 'inline-block';
+        if (openStockTakesTabBtn) openStockTakesTabBtn.style.display = 'inline-block';
     }
 }
 window.setRole = setRole;
@@ -125,8 +166,12 @@ function showTab(tabName, clickedElement) {
         // Update dropdowns
         updateCompanyDropdowns();
         updateWarehouseDropdowns();
+        // Update stock take status
+        updateStockTakeStatus();
     } else if (tabName === 'view') {
         loadItems();
+    } else if (tabName === 'openStockTakes') {
+        loadOpenStockTakes();
     }
 }
 window.showTab = showTab;
@@ -1486,13 +1531,23 @@ function updateStockTakeStatus() {
         openBtn.style.display = 'none';
         closeBtn.style.display = 'inline-block';
         
-        // Show scanning sections
-        if (binSection) binSection.style.display = 'block';
+        // Show scanning sections - ALWAYS show bin location section when stock take is open
+        if (binSection) {
+            binSection.style.display = 'block';
+            binSection.style.visibility = 'visible';
+        }
         
-        // Focus on bin location input for immediate scanning
+        // Scroll to bin location section to make it visible
         setTimeout(() => {
+            if (binSection) {
+                binSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+            // Focus on bin location input for immediate scanning
             const binInput = document.getElementById('binLocationInput');
-            if (binInput) binInput.focus();
+            if (binInput) {
+                binInput.focus();
+                binInput.select();
+            }
         }, 100);
     } else {
         statusBox.innerHTML = '<p>No stock take open</p>';
@@ -1807,6 +1862,106 @@ async function loadActiveStockTake(companyId, warehouseId) {
         console.error('Error loading active stock take:', error);
     }
 }
+
+// ========== OPEN STOCK TAKES LIST ==========
+async function loadOpenStockTakes() {
+    try {
+        const response = await fetch(`${CONFIG.apiUrl}/stock-takes?status=open`);
+        
+        if (!response.ok) throw new Error('Failed to load open stock takes');
+        
+        const openStockTakes = await response.json();
+        
+        const listEl = document.getElementById('openStockTakesList');
+        const noItemsEl = document.getElementById('noOpenStockTakes');
+        
+        if (listEl) {
+            if (openStockTakes.length === 0) {
+                listEl.innerHTML = '';
+                if (noItemsEl) noItemsEl.style.display = 'block';
+            } else {
+                if (noItemsEl) noItemsEl.style.display = 'none';
+                listEl.innerHTML = openStockTakes.map(st => `
+                    <div class="item-card">
+                        <div class="item-header">
+                            <h3>${escapeHtml(st.company_name)} - ${escapeHtml(st.warehouse_name)}</h3>
+                            <span class="item-id">ID: ${st.id}</span>
+                        </div>
+                        <div class="item-details">
+                            <div class="detail-item"><strong>Company:</strong> ${escapeHtml(st.company_name)}</div>
+                            <div class="detail-item"><strong>Warehouse:</strong> ${escapeHtml(st.warehouse_name)}</div>
+                            ${st.opened_by_name ? `<div class="detail-item"><strong>Opened By:</strong> ${escapeHtml(st.opened_by_name)}</div>` : ''}
+                            <div class="detail-item"><strong>Opened:</strong> ${formatDate(st.opened_at)}</div>
+                            ${st.notes ? `<div class="detail-item"><strong>Notes:</strong> ${escapeHtml(st.notes)}</div>` : ''}
+                        </div>
+                        <div class="item-actions">
+                            <button onclick="openExistingStockTake(${st.id})" class="btn btn-small">Open</button>
+                            <button onclick="closeStockTakeById(${st.id})" class="btn btn-small btn-danger">Close</button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+    } catch (error) {
+        console.error('Error loading open stock takes:', error);
+        alert(`Error loading open stock takes: ${error.message}`);
+    }
+}
+window.loadOpenStockTakes = loadOpenStockTakes;
+
+async function openExistingStockTake(stockTakeId) {
+    try {
+        const response = await fetch(`${CONFIG.apiUrl}/stock-takes/${stockTakeId}`);
+        
+        if (!response.ok) throw new Error('Failed to load stock take');
+        
+        const stockTake = await response.json();
+        currentStockTake = stockTake;
+        
+        // Set company and warehouse dropdowns
+        document.getElementById('openStockTakeCompany').value = stockTake.company_id;
+        document.getElementById('openStockTakeWarehouse').value = stockTake.warehouse_id;
+        updateWarehousesForOpenStockTake();
+        
+        updateStockTakeStatus();
+        showTab('stocktake');
+        
+        alert('✅ Stock take loaded successfully!');
+    } catch (error) {
+        alert(`❌ Error: ${error.message}`);
+    }
+}
+window.openExistingStockTake = openExistingStockTake;
+
+async function closeStockTakeById(stockTakeId) {
+    if (!confirm('Are you sure you want to close this stock take?')) return;
+    
+    try {
+        const response = await fetch(`${CONFIG.apiUrl}/stock-takes/${stockTakeId}/close`, {
+            method: 'PUT'
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to close stock take');
+        }
+        
+        // If this was the current stock take, clear it
+        if (currentStockTake && currentStockTake.id === stockTakeId) {
+            currentStockTake = null;
+            currentBinLocation = null;
+            currentBinItems = [];
+            updateStockTakeStatus();
+            clearBinLocation();
+        }
+        
+        alert('✅ Stock take closed successfully!');
+        loadOpenStockTakes();
+    } catch (error) {
+        alert(`❌ Error: ${error.message}`);
+    }
+}
+window.closeStockTakeById = closeStockTakeById;
 
 // ========== UTILITY FUNCTIONS ==========
 function formatDate(dateString) {

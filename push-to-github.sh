@@ -26,16 +26,18 @@ fi
 
 # Commit changes
 echo "💾 Committing changes..."
-git commit -m "Add role-based interface and local development setup
+git commit -m "Add role selection screen and fix scanning interface
 
-- Added Counter Mode and Manager Mode role selector
-- Counter Mode: Only shows Stock Take tab (scanning interface)
-- Manager Mode: Shows all tabs (Setup, Stock Take, View Items)
+- Added role selection screen that appears first on app load
+- Counter mode: Only shows Stock Take and Open Stock Takes tabs (NO setup/view)
+- Manager mode: Shows all tabs (Setup, Stock Take, View Items, Open Stock Takes)
+- Fixed scanning interface visibility - now shows when stock take is open
+- Added Open Stock Takes list with ability to open/close stock takes
+- Enhanced scanning sections with auto-focus and auto-scroll
+- Added API endpoint to get single stock take by ID
 - Role preference saved in localStorage
-- Added local development server setup
-- Enhanced scanning interface visibility
-- Fixed tab visibility based on user role
-- Added start-local.sh script for easy local development"
+- Switch Role button to change roles
+- Improved visual hierarchy and mobile-friendly scanning inputs"
 
 # Push to GitHub
 echo "🚀 Pushing to GitHub..."

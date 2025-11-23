@@ -10,6 +10,79 @@ body {
     min-height: 100vh;
     padding: 20px;
     color: #333;
+    margin: 0;
+}
+
+/* Role Selection Screen */
+.role-selection-screen {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.role-selection-card {
+    background: white;
+    border-radius: 16px;
+    padding: 3rem;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    max-width: 800px;
+    width: 100%;
+    text-align: center;
+}
+
+.role-selection-card h1 {
+    font-size: 2.5rem;
+    color: #667eea;
+    margin-bottom: 0.5rem;
+}
+
+.role-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2rem;
+    margin-top: 3rem;
+}
+
+.role-option-btn {
+    background: white;
+    border: 3px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 2rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-align: center;
+}
+
+.role-option-btn:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    border-color: #667eea;
+}
+
+.role-option-btn.counter-btn:hover {
+    border-color: #28a745;
+}
+
+.role-option-btn.manager-btn:hover {
+    border-color: #667eea;
+}
+
+.role-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+}
+
+.role-option-btn h2 {
+    color: #333;
+    margin-bottom: 0.5rem;
+    font-size: 1.5rem;
+}
+
+.role-option-btn p {
+    color: #666;
+    font-size: 0.95rem;
 }
 
 .container {
