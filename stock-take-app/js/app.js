@@ -22,59 +22,115 @@ let qrScanner = null; // QR Code scanner instance
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Stock Take Management System initialized');
     
+    // Add event listeners to role buttons as fallback
+    const counterBtn = document.querySelector('.counter-btn');
+    const managerBtn = document.querySelector('.manager-btn');
+    
+    if (counterBtn) {
+        counterBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('Counter button clicked');
+            selectRole('counter');
+        });
+    }
+    
+    if (managerBtn) {
+        managerBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('Manager button clicked');
+            selectRole('manager');
+        });
+    }
+    
     // Check if role is already selected
     const savedRole = localStorage.getItem('stockTakeRole');
     
     if (!savedRole) {
         // Show role selection screen
-        document.getElementById('roleSelectionScreen').style.display = 'flex';
-        document.getElementById('mainApp').style.display = 'none';
+        const roleScreen = document.getElementById('roleSelectionScreen');
+        const mainApp = document.getElementById('mainApp');
+        if (roleScreen) roleScreen.style.display = 'flex';
+        if (mainApp) mainApp.style.display = 'none';
     } else {
         // Hide role selection, show main app
-        document.getElementById('roleSelectionScreen').style.display = 'none';
-        document.getElementById('mainApp').style.display = 'block';
+        const roleScreen = document.getElementById('roleSelectionScreen');
+        const mainApp = document.getElementById('mainApp');
+        if (roleScreen) roleScreen.style.display = 'none';
+        if (mainApp) mainApp.style.display = 'block';
         initializeApp(savedRole);
     }
 });
 
 function initializeApp(role) {
-    currentRole = role;
-    
-    // Update UI based on role
-    setRole(role, false); // Don't save (already saved)
-    
-    // Load initial data
-    loadCompanies().then(() => {
-        // After companies load, load other data
-        loadWarehouses();
-        loadBinLocations();
-        loadManagers().then(() => {
-            // After managers load, update company/warehouse dropdowns for stock take
-            updateCompanyDropdowns();
-            updateWarehouseDropdowns();
+    try {
+        console.log('Initializing app with role:', role);
+        currentRole = role;
+        
+        // Update UI based on role
+        setRole(role, false); // Don't save (already saved)
+        
+        // Load initial data
+        loadCompanies().then(() => {
+            // After companies load, load other data
+            loadWarehouses();
+            loadBinLocations();
+            loadManagers().then(() => {
+                // After managers load, update company/warehouse dropdowns for stock take
+                updateCompanyDropdowns();
+                updateWarehouseDropdowns();
+            });
+        }).catch(error => {
+            console.error('Error loading initial data:', error);
         });
-    });
-    
-    // Load open stock takes if in counter mode
-    if (role === 'counter') {
-        loadOpenStockTakes();
-    }
-    
-    // Initialize stock take status
-    setTimeout(() => {
-        if (document.getElementById('stocktakeTab')?.classList.contains('active')) {
-            updateStockTakeStatus();
+        
+        // Load open stock takes if in counter mode
+        if (role === 'counter') {
+            loadOpenStockTakes();
         }
-    }, 100);
+        
+        // Initialize stock take status
+        setTimeout(() => {
+            const stocktakeTab = document.getElementById('stocktakeTab');
+            if (stocktakeTab && stocktakeTab.classList.contains('active')) {
+                updateStockTakeStatus();
+            }
+        }, 100);
+    } catch (error) {
+        console.error('Error in initializeApp:', error);
+        alert('Error initializing app. Please refresh the page and try again.');
+    }
 }
 
 function selectRole(role) {
-    localStorage.setItem('stockTakeRole', role);
-    document.getElementById('roleSelectionScreen').style.display = 'none';
-    document.getElementById('mainApp').style.display = 'block';
-    initializeApp(role);
+    try {
+        console.log('Selecting role:', role);
+        localStorage.setItem('stockTakeRole', role);
+        
+        const roleSelectionScreen = document.getElementById('roleSelectionScreen');
+        const mainApp = document.getElementById('mainApp');
+        
+        if (roleSelectionScreen) {
+            roleSelectionScreen.style.display = 'none';
+        }
+        
+        if (mainApp) {
+            mainApp.style.display = 'block';
+        }
+        
+        // Small delay to ensure DOM is ready
+        setTimeout(() => {
+            initializeApp(role);
+        }, 50);
+    } catch (error) {
+        console.error('Error in selectRole:', error);
+        alert('Error selecting role. Please refresh the page and try again.');
+    }
 }
+// Make function available globally immediately
 window.selectRole = selectRole;
+
+// Debug: Verify function is available
+console.log('selectRole function available:', typeof window.selectRole);
 
 function switchRole() {
     if (confirm('Switch to a different role? This will reload the app.')) {
@@ -120,8 +176,13 @@ function setRole(role, saveToStorage = true) {
         if (managerStockTakeSection) managerStockTakeSection.style.display = 'none';
         
         // Switch to stock take tab
-        if (!document.getElementById('stocktakeTab').classList.contains('active')) {
-            showTab('stocktake');
+        const stocktakeTab = document.getElementById('stocktakeTab');
+        if (stocktakeTab && !stocktakeTab.classList.contains('active')) {
+            try {
+                showTab('stocktake');
+            } catch (error) {
+                console.error('Error switching to stocktake tab:', error);
+            }
         }
         
         // Load open stock takes
@@ -165,15 +226,20 @@ function showTab(tabName, clickedElement) {
     document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     
-    document.getElementById(tabName + 'Tab').classList.add('active');
+    const tabElement = document.getElementById(tabName + 'Tab');
+    if (tabElement) {
+        tabElement.classList.add('active');
+    }
+    
     if (clickedElement) {
         clickedElement.classList.add('active');
     } else {
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            if (btn.textContent.toLowerCase().includes(tabName)) {
-                btn.classList.add('active');
-            }
-        });
+        // Find the tab button by ID
+        const tabBtnId = tabName + 'TabBtn';
+        const tabBtn = document.getElementById(tabBtnId);
+        if (tabBtn) {
+            tabBtn.classList.add('active');
+        }
     }
     
     // Load data when switching tabs
