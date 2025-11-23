@@ -1,26 +1,27 @@
 #!/bin/bash
-# Script to push everything to GitHub repository
+# Quick push script with GitHub token
 
 set -e
 
-GITHUB_TOKEN="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"
-REPO_URL="https://github.com/ruankoekemoer-ops/stocktakeapp.git"
-# Use token in URL for authentication
-AUTH_REPO_URL="https://${GITHUB_TOKEN}@github.com/ruankoekemoer-ops/stocktakeapp.git"
+cd "/Users/ruankoekemoer/Sharepoint Test"
 
-echo "🚀 Setting up Git repository and pushing to GitHub..."
+echo "🚀 Pushing to GitHub repository..."
 echo ""
 
-# Check if git is initialized
+# Initialize git if needed
 if [ ! -d ".git" ]; then
     echo "📦 Initializing Git repository..."
     git init
 fi
 
-# Add remote (force update if exists)
+# Configure git (if needed)
+git config user.name "ruankoekemoer-ops" || true
+git config user.email "rkoekemoer@masterdrilling.com" || true
+
+# Add remote with token
 echo "🔗 Setting up remote repository..."
 git remote remove origin 2>/dev/null || true
-git remote add origin "$AUTH_REPO_URL"
+git remote add origin https://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@github.com/ruankoekemoer-ops/stocktakeapp.git
 
 # Add all files
 echo "📝 Adding files..."
@@ -37,5 +38,5 @@ git push -u origin main --force
 
 echo ""
 echo "✅ Successfully pushed to GitHub!"
-echo "📍 Repository: $REPO_URL"
+echo "📍 Repository: https://github.com/ruankoekemoer-ops/stocktakeapp"
 
