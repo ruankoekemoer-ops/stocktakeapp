@@ -13,10 +13,16 @@
             <p class="subtitle">Scan, count, and submit inventory</p>
         </header>
 
-        <nav class="tabs">
-            <button class="tab-btn active" onclick="showTab('setup')">Setup</button>
-            <button class="tab-btn" onclick="showTab('stocktake')">Stock Take</button>
-            <button class="tab-btn" onclick="showTab('view')">View Items</button>
+        <!-- Role Selector -->
+        <div class="role-selector">
+            <button onclick="setRole('counter')" class="role-btn" id="counterRoleBtn">📱 Counter Mode</button>
+            <button onclick="setRole('manager')" class="role-btn active" id="managerRoleBtn">⚙️ Manager Mode</button>
+        </div>
+
+        <nav class="tabs" id="mainTabs">
+            <button class="tab-btn active" onclick="showTab('setup')" id="setupTabBtn" style="display: none;">Setup</button>
+            <button class="tab-btn" onclick="showTab('stocktake')" id="stocktakeTabBtn">Stock Take</button>
+            <button class="tab-btn" onclick="showTab('view')" id="viewTabBtn" style="display: none;">View Items</button>
         </nav>
 
         <!-- Setup Tab - Single Company Settings Screen -->
@@ -98,7 +104,7 @@
         </div>
 
         <!-- Stock Take Tab - NEW WORKFLOW -->
-        <div id="stocktakeTab" class="tab-content">
+        <div id="stocktakeTab" class="tab-content active">
             <div class="stock-take-workflow">
                 <!-- Step 1: Open/Close Stock Take -->
                 <section class="workflow-section">
@@ -215,7 +221,7 @@
             </div>
         </div>
 
-        <!-- View Items Tab -->
+        <!-- View Items Tab (Manager Only) -->
         <div id="viewTab" class="tab-content">
             <div class="view-container">
                 <div class="view-header">

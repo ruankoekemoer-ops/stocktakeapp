@@ -26,15 +26,16 @@ fi
 
 # Commit changes
 echo "💾 Committing changes..."
-git commit -m "Add prominent scanning interface for bin locations and items
+git commit -m "Add role-based interface and local development setup
 
-- Enhanced scanning sections with large, mobile-friendly inputs
-- Added auto-focus on scanning inputs for better UX
-- Improved visual hierarchy with distinct styling
-- Auto-scroll to item scanning after bin location scanned
-- Fixed initialization errors with currentStockTake variable
-- Added smooth transitions and better button styling
-- Scanning sections now visible immediately when stock take opens"
+- Added Counter Mode and Manager Mode role selector
+- Counter Mode: Only shows Stock Take tab (scanning interface)
+- Manager Mode: Shows all tabs (Setup, Stock Take, View Items)
+- Role preference saved in localStorage
+- Added local development server setup
+- Enhanced scanning interface visibility
+- Fixed tab visibility based on user role
+- Added start-local.sh script for easy local development"
 
 # Push to GitHub
 echo "🚀 Pushing to GitHub..."

@@ -10,12 +10,17 @@ let companies = [];
 let warehouses = [];
 let binLocations = [];
 let managers = [];
+let currentRole = 'manager'; // 'counter' or 'manager'
 
 /**
  * Initialize app
  */
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Stock Take Management System initialized');
+    
+    // Initialize role (check localStorage or default to manager)
+    const savedRole = localStorage.getItem('stockTakeRole') || 'manager';
+    setRole(savedRole, false); // false = don't save to localStorage (already set)
     
     // Load initial data
     loadCompanies().then(() => {
@@ -43,10 +48,57 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 100);
 });
 
+// ========== ROLE MANAGEMENT ==========
+function setRole(role, saveToStorage = true) {
+    currentRole = role;
+    
+    if (saveToStorage) {
+        localStorage.setItem('stockTakeRole', role);
+    }
+    
+    // Update role buttons
+    document.getElementById('counterRoleBtn').classList.toggle('active', role === 'counter');
+    document.getElementById('managerRoleBtn').classList.toggle('active', role === 'manager');
+    
+    // Show/hide tabs based on role
+    const setupTabBtn = document.getElementById('setupTabBtn');
+    const viewTabBtn = document.getElementById('viewTabBtn');
+    const stocktakeTabBtn = document.getElementById('stocktakeTabBtn');
+    
+    if (role === 'counter') {
+        // Counter mode: Only show Stock Take tab
+        if (setupTabBtn) setupTabBtn.style.display = 'none';
+        if (viewTabBtn) viewTabBtn.style.display = 'none';
+        if (stocktakeTabBtn) {
+            stocktakeTabBtn.style.display = 'inline-block';
+            // Switch to stock take tab if not already there
+            if (!document.getElementById('stocktakeTab').classList.contains('active')) {
+                showTab('stocktake');
+            }
+        }
+    } else {
+        // Manager mode: Show all tabs
+        if (setupTabBtn) setupTabBtn.style.display = 'inline-block';
+        if (viewTabBtn) viewTabBtn.style.display = 'inline-block';
+        if (stocktakeTabBtn) stocktakeTabBtn.style.display = 'inline-block';
+    }
+}
+window.setRole = setRole;
+
 /**
  * Tab switching
  */
 function showTab(tabName, clickedElement) {
+    // Check if tab is allowed for current role
+    if (tabName === 'setup' && currentRole === 'counter') {
+        alert('Setup is only available in Manager mode');
+        return;
+    }
+    if (tabName === 'view' && currentRole === 'counter') {
+        alert('View Items is only available in Manager mode');
+        return;
+    }
+    
     document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     

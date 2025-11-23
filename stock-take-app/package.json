@@ -1,0 +1,16 @@
+{
+  "name": "stock-take-app",
+  "version": "1.0.0",
+  "description": "Stock Take Management System - Local Development",
+  "scripts": {
+    "dev": "python3 -m http.server 8000",
+    "start": "python3 -m http.server 8000"
+  },
+  "keywords": [
+    "stock-take",
+    "inventory"
+  ],
+  "author": "",
+  "license": "MIT"
+}
+
