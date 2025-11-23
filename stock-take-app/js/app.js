@@ -11,6 +11,10 @@ let warehouses = [];
 let binLocations = [];
 let managers = [];
 let currentRole = 'manager'; // 'counter' or 'manager'
+let currentStockTake = null;
+let currentBinLocation = null;
+let currentBinItems = [];
+let qrScanner = null; // QR Code scanner instance
 
 /**
  * Initialize app
@@ -2095,3 +2099,92 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
+
+// ========== QR CODE SCANNING ==========
+async function startQRScan(inputId) {
+    // Stop any existing scanner
+    if (qrScanner) {
+        try {
+            await qrScanner.clear();
+        } catch (e) {
+            console.log('Clearing previous scanner');
+        }
+        qrScanner = null;
+    }
+
+    // Check if Html5Qrcode is available
+    if (typeof Html5Qrcode === 'undefined') {
+        alert('QR Code scanner library not loaded. Please refresh the page.');
+        return;
+    }
+
+    // Create modal for camera view
+    const modal = document.createElement('div');
+    modal.id = 'qrScannerModal';
+    modal.className = 'qr-scanner-modal';
+    modal.innerHTML = `
+        <div class="qr-scanner-content">
+            <div class="qr-scanner-header">
+                <h3>Scan QR Code</h3>
+                <button onclick="stopQRScan()" class="btn btn-secondary">✕ Close</button>
+            </div>
+            <div id="qr-reader" style="width: 100%;"></div>
+            <p class="qr-hint">Point your camera at the QR code</p>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    // Initialize scanner
+    qrScanner = new Html5Qrcode("qr-reader");
+    
+    try {
+        await qrScanner.start(
+            { facingMode: "environment" }, // Use back camera on mobile
+            {
+                fps: 10,
+                qrbox: { width: 250, height: 250 },
+                aspectRatio: 1.0
+            },
+            (decodedText, decodedResult) => {
+                // Successfully scanned
+                document.getElementById(inputId).value = decodedText;
+                stopQRScan();
+                
+                // Trigger the appropriate handler
+                if (inputId === 'counterBinLocationInput') {
+                    handleCounterBinLocationScan();
+                } else if (inputId === 'binLocationInput') {
+                    handleBinLocationScan();
+                } else if (inputId === 'itemCodeInput') {
+                    handleItemCodeScan();
+                }
+            },
+            (errorMessage) => {
+                // Ignore scanning errors (just keep trying)
+            }
+        );
+    } catch (err) {
+        console.error('Error starting QR scanner:', err);
+        alert('Failed to start camera. Please check permissions and try again.');
+        stopQRScan();
+    }
+}
+window.startQRScan = startQRScan;
+
+async function stopQRScan() {
+    if (qrScanner) {
+        try {
+            await qrScanner.stop();
+            await qrScanner.clear();
+        } catch (e) {
+            console.log('Stopping scanner');
+        }
+        qrScanner = null;
+    }
+    
+    const modal = document.getElementById('qrScannerModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+window.stopQRScan = stopQRScan;

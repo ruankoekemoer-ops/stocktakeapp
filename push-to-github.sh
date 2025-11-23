@@ -26,15 +26,15 @@ fi
 
 # Commit changes
 echo "💾 Committing changes..."
-git commit -m "Fix counter mode: Only count against existing open stock takes
+git commit -m "Fix SQL error and add QR code scanning
 
-- Counter can no longer open stock takes (only managers can)
-- Counter must scan bin location first, which checks for open stock take
-- If no open stock take exists, counter gets clear error message
-- Counter interface simplified: Only shows 'Start Counting' with bin scan
-- Manager interface unchanged: Can open/close stock takes
-- Improved error handling and user feedback
-- Removed unnecessary success alerts"
+- Fixed SQL query error: Changed w.warehouse_id to w.id as warehouse_id in bin-locations lookup
+- Added QR code scanning functionality using html5-qrcode library
+- Added camera button (📷) to bin location inputs (counter and manager modes)
+- Added camera button (📷) to item code input
+- QR scanner opens in modal with camera view
+- Automatically triggers appropriate handler after successful scan
+- Works on mobile devices with back camera support"
 
 # Push to GitHub
 echo "🚀 Pushing to GitHub..."

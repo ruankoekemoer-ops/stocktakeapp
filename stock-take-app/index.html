@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stock Take Management System</title>
     <link rel="stylesheet" href="css/style.css">
+    <!-- QR Code Scanner Library -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 </head>
 <body>
     <!-- Role Selection Screen (shown first) -->
@@ -153,6 +155,7 @@
                                     autocomplete="off"
                                     autofocus
                                 >
+                                <button onclick="startQRScan('counterBinLocationInput')" class="btn btn-secondary btn-large" title="Scan QR Code">📷</button>
                                 <button onclick="handleCounterBinLocationScan()" class="btn btn-primary btn-large">Start</button>
                             </div>
                         </div>
@@ -207,6 +210,7 @@
                                     autocomplete="off"
                                     autofocus
                                 >
+                                <button onclick="startQRScan('binLocationInput')" class="btn btn-secondary btn-large" title="Scan QR Code">📷</button>
                                 <button onclick="handleBinLocationScan()" class="btn btn-primary btn-large">✓ Scan</button>
                             </div>
                             <button onclick="clearBinLocation()" class="btn btn-link" id="clearBinBtn" style="display: none; margin-top: 10px;">Clear Bin Location</button>
@@ -221,15 +225,18 @@
                         <div class="scan-input-large">
                             <label for="itemCodeInput" class="scan-label">Item Code</label>
                             <p class="scan-hint">Scan QR code for item</p>
-                            <input 
-                                type="text" 
-                                id="itemCodeInput" 
-                                class="form-control scan-input" 
-                                placeholder="Scan QR code or enter item code..."
-                                onkeypress="if(event.key==='Enter') handleItemCodeScan()"
-                                autocomplete="off"
-                                autofocus
-                            >
+                            <div class="input-with-button-large">
+                                <input 
+                                    type="text" 
+                                    id="itemCodeInput" 
+                                    class="form-control scan-input" 
+                                    placeholder="Scan QR code or enter item code..."
+                                    onkeypress="if(event.key==='Enter') handleItemCodeScan()"
+                                    autocomplete="off"
+                                    autofocus
+                                >
+                                <button onclick="startQRScan('itemCodeInput')" class="btn btn-secondary btn-large" title="Scan QR Code">📷</button>
+                            </div>
                         </div>
                         
                         <div class="form-row">

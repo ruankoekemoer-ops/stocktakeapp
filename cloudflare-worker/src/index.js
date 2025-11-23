@@ -519,7 +519,7 @@ export default {
         
         // Find bin location by code
         const binLocation = await env.DB.prepare(
-          `SELECT b.*, w.warehouse_id, w.warehouse_name, w.company_id, c.company_name
+          `SELECT b.*, w.id as warehouse_id, w.warehouse_name, w.company_id, c.company_name
           FROM bin_locations b
           LEFT JOIN warehouses w ON b.warehouse_id = w.id
           LEFT JOIN companies c ON w.company_id = c.id
