@@ -26,15 +26,14 @@ fi
 
 # Commit changes
 echo "💾 Committing changes..."
-git commit -m "Fix role selection buttons and duplicate variable declarations
+git commit -m "Fix error handling for stock take check in bin location scan
 
-- Fixed duplicate variable declarations (currentStockTake, currentBinLocation, currentBinItems) that prevented JavaScript from loading
-- Fixed role selection buttons not working - added pointer-events: none to child elements
-- Added multiple event listeners (click, mousedown, touchstart) for better compatibility
-- Changed buttons to use IDs instead of data attributes for more reliable selection
-- Added comprehensive console logging for debugging
-- Buttons now properly transition from role selection to app interface
-- Tested and verified: Counter and Manager buttons both work correctly"
+- Improved error handling when checking for open stock takes
+- Now properly handles 200 OK with null response (no stock take found)
+- Handles 404 as expected case (no stock take exists)
+- Only throws errors for actual server errors (500, etc.)
+- Better error messages for network issues
+- Prevents 'Failed to check for open stock take' error when no stock take exists"
 
 # Push to GitHub
 echo "🚀 Pushing to GitHub..."

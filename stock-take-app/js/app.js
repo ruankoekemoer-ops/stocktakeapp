@@ -1726,13 +1726,39 @@ async function handleCounterBinLocationScan() {
         const binLocation = await lookupResponse.json();
         
         // Check if there's an open stock take for this warehouse/company
-        const stockTakeResponse = await fetch(`${CONFIG.apiUrl}/stock-takes/active?company_id=${binLocation.company_id}&warehouse_id=${binLocation.warehouse_id}`);
-        
-        if (!stockTakeResponse.ok) {
-            throw new Error('Failed to check for open stock take');
+        let stockTake = null;
+        try {
+            const stockTakeResponse = await fetch(`${CONFIG.apiUrl}/stock-takes/active?company_id=${binLocation.company_id}&warehouse_id=${binLocation.warehouse_id}`);
+            
+            if (stockTakeResponse.ok) {
+                stockTake = await stockTakeResponse.json();
+                // If the response is null or empty, no stock take exists
+                if (!stockTake) {
+                    stockTake = null;
+                }
+            } else if (stockTakeResponse.status === 404) {
+                // 404 means no stock take found - this is expected, not an error
+                stockTake = null;
+            } else {
+                // Other HTTP error - try to get error message
+                let errorMessage = 'Failed to check for open stock take';
+                try {
+                    const errorData = await stockTakeResponse.json();
+                    errorMessage = errorData.error || errorMessage;
+                } catch (e) {
+                    errorMessage = `Server error (${stockTakeResponse.status}): ${stockTakeResponse.statusText}`;
+                }
+                throw new Error(errorMessage);
+            }
+        } catch (error) {
+            // If it's already our custom error, re-throw it
+            if (error.message.includes('Failed to check') || error.message.includes('Server error')) {
+                throw error;
+            }
+            // Network or other errors - show helpful message
+            console.error('Error checking for open stock take:', error);
+            throw new Error('Unable to connect to server. Please check your internet connection and try again.');
         }
-        
-        const stockTake = await stockTakeResponse.json();
         
         // Counter can ONLY count against existing open stock takes
         if (!stockTake) {
