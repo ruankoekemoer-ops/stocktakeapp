@@ -7,6 +7,7 @@
     "build": "node build-static-files.js",
     "dev": "npm run build && wrangler dev",
     "deploy": "npm run build && wrangler deploy",
+    "build-and-deploy": "npm run build && wrangler deploy",
     "db:create": "wrangler d1 create stock-take-db",
     "db:migrate": "wrangler d1 execute --database-id=7b0985e4-b27d-4c39-9438-0b638ae8b469 --file=./schema.sql",
     "db:query": "wrangler d1 execute stock-take-db --command"

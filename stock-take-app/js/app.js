@@ -22,7 +22,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // After companies load, load other data
         loadWarehouses();
         loadBinLocations();
-        loadManagers();
+        loadManagers().then(() => {
+            // After managers load, update company/warehouse dropdowns for stock take
+            updateCompanyDropdowns();
+            updateWarehouseDropdowns();
+        });
     });
     
     // Load items if on view tab
@@ -56,6 +60,14 @@ function showTab(tabName, clickedElement) {
     if (tabName === 'setup') {
         loadCompanies();
         // Don't auto-load other data - wait for company selection
+    } else if (tabName === 'stocktake') {
+        // Ensure managers are loaded for validation
+        if (managers.length === 0) {
+            loadManagers();
+        }
+        // Update dropdowns
+        updateCompanyDropdowns();
+        updateWarehouseDropdowns();
     } else if (tabName === 'view') {
         loadItems();
     }
@@ -1279,34 +1291,59 @@ function updateWarehousesForOpenStockTake() {
         });
     }
     
-    // Clear manager dropdown
-    document.getElementById('openStockTakeManager').innerHTML = '<option value="">Select Manager</option>';
+    // Clear validation message
+    const validationMsg = document.getElementById('managerValidationMessage');
+    if (validationMsg) {
+        validationMsg.style.display = 'none';
+    }
 }
 window.updateWarehousesForOpenStockTake = updateWarehousesForOpenStockTake;
 
-// Update managers when warehouse changes
-document.getElementById('openStockTakeWarehouse')?.addEventListener('change', function() {
-    const warehouseId = this.value;
-    const managerSelect = document.getElementById('openStockTakeManager');
+function validateManagerForWarehouse() {
+    const warehouseId = document.getElementById('openStockTakeWarehouse').value;
+    const validationMsg = document.getElementById('managerValidationMessage');
     
-    managerSelect.innerHTML = '<option value="">Select Manager</option>';
-    if (warehouseId) {
-        const warehouseManagers = managers.filter(m => m.warehouse_id == warehouseId);
-        warehouseManagers.forEach(m => {
-            managerSelect.innerHTML += `<option value="${m.id}">${escapeHtml(m.manager_name)}</option>`;
-        });
+    if (!validationMsg) return;
+    
+    if (!warehouseId) {
+        validationMsg.style.display = 'none';
+        return;
     }
-});
+    
+    // Check if there are any managers for this warehouse
+    const warehouseManagers = managers.filter(m => m.warehouse_id == warehouseId && m.is_active !== 0);
+    
+    if (warehouseManagers.length === 0) {
+        validationMsg.style.display = 'block';
+        validationMsg.className = 'validation-message error';
+        validationMsg.innerHTML = '⚠️ No active managers found for this warehouse. Please add a manager in Setup before opening a stock take.';
+    } else {
+        validationMsg.style.display = 'block';
+        validationMsg.className = 'validation-message success';
+        validationMsg.innerHTML = `✅ ${warehouseManagers.length} manager(s) available for this warehouse: ${warehouseManagers.map(m => escapeHtml(m.manager_name)).join(', ')}`;
+    }
+}
+window.validateManagerForWarehouse = validateManagerForWarehouse;
 
 async function openStockTake() {
     const companyId = document.getElementById('openStockTakeCompany').value;
     const warehouseId = document.getElementById('openStockTakeWarehouse').value;
-    const managerId = document.getElementById('openStockTakeManager').value;
     
-    if (!companyId || !warehouseId || !managerId) {
-        alert('Please select Company, Warehouse, and Manager');
+    if (!companyId || !warehouseId) {
+        alert('Please select Company and Warehouse');
         return;
     }
+    
+    // Validate that at least one manager exists for this warehouse
+    const warehouseManagers = managers.filter(m => m.warehouse_id == warehouseId && m.is_active !== 0);
+    
+    if (warehouseManagers.length === 0) {
+        alert('❌ Cannot open stock take: No active managers found for this warehouse.\n\nPlease add a manager in Setup before opening a stock take.');
+        return;
+    }
+    
+    // Use the first active manager (or you could let the user choose later)
+    const managerId = warehouseManagers[0].id;
     
     try {
         const response = await fetch(`${CONFIG.apiUrl}/stock-takes`, {
@@ -1315,7 +1352,7 @@ async function openStockTake() {
             body: JSON.stringify({
                 company_id: parseInt(companyId),
                 warehouse_id: parseInt(warehouseId),
-                opened_by_manager_id: parseInt(managerId)
+                opened_by_manager_id: managerId
             })
         });
         
@@ -1328,7 +1365,7 @@ async function openStockTake() {
         currentStockTake = data.stockTake;
         
         updateStockTakeStatus();
-        alert('✅ Stock take opened successfully!');
+        alert(`✅ Stock take opened successfully!\n\nManager: ${warehouseManagers[0].manager_name}`);
     } catch (error) {
         alert(`❌ Error: ${error.message}`);
     }

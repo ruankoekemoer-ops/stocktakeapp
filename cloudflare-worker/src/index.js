@@ -394,12 +394,43 @@ export default {
           });
         }
         
+        // Validate that at least one active manager exists for this warehouse
+        const managers = await env.DB.prepare(
+          'SELECT id FROM warehouse_managers WHERE warehouse_id = ? AND is_active = 1'
+        ).bind(data.warehouse_id).all();
+        
+        if (!managers.results || managers.results.length === 0) {
+          return new Response(JSON.stringify({ 
+            error: 'No active managers found for this warehouse. Please add a manager before opening a stock take.' 
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        // If no manager_id provided, use the first active manager
+        let managerId = data.opened_by_manager_id;
+        if (!managerId) {
+          managerId = managers.results[0].id;
+        } else {
+          // Validate the provided manager belongs to this warehouse
+          const manager = managers.results.find(m => m.id === managerId);
+          if (!manager) {
+            return new Response(JSON.stringify({ 
+              error: 'The specified manager does not belong to this warehouse or is not active.' 
+            }), {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        }
+        
         const result = await env.DB.prepare(
           'INSERT INTO stock_takes (company_id, warehouse_id, opened_by_manager_id, notes, status) VALUES (?, ?, ?, ?, ?)'
         ).bind(
           data.company_id,
           data.warehouse_id,
-          data.opened_by_manager_id || null,
+          managerId,
           data.notes || null,
           'open'
         ).run();

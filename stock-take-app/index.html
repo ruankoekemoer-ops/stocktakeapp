@@ -115,17 +115,12 @@
                         </div>
                         <div class="form-group">
                             <label for="openStockTakeWarehouse">Warehouse *</label>
-                            <select id="openStockTakeWarehouse" class="form-control" required>
+                            <select id="openStockTakeWarehouse" class="form-control" required onchange="validateManagerForWarehouse()">
                                 <option value="">Select Warehouse</option>
                             </select>
                         </div>
-                        <div class="form-group">
-                            <label for="openStockTakeManager">Manager *</label>
-                            <select id="openStockTakeManager" class="form-control" required>
-                                <option value="">Select Manager</option>
-                            </select>
-                        </div>
                     </div>
+                    <div id="managerValidationMessage" class="validation-message" style="display: none;"></div>
                     <div class="button-group">
                         <button onclick="openStockTake()" class="btn btn-primary" id="openStockTakeBtn">Open Stock Take</button>
                         <button onclick="closeStockTake()" class="btn btn-danger" id="closeStockTakeBtn" style="display: none;">Close Stock Take</button>

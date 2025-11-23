@@ -26,14 +26,14 @@ fi
 
 # Commit changes
 echo "💾 Committing changes..."
-git commit -m "Redesign: Single company settings screen with improved dropdown flows
+git commit -m "Remove manager selection from stock take opening, add automatic validation
 
-- Consolidated setup into single company-centric settings screen
-- Fixed all dropdown dependencies and cascading updates
-- Improved error prevention and validation
-- Enhanced UI with better organization
-- All modals pre-populate with selected company
-- Auto-select newly created companies"
+- Removed manager dropdown from Open Stock Take form
+- Added automatic validation that managers exist for warehouse
+- System automatically assigns first active manager
+- Added visual validation messages
+- Fixed manager loading and dropdown updates
+- API validates managers exist before opening stock take"
 
 # Push to GitHub
 echo "🚀 Pushing to GitHub..."
