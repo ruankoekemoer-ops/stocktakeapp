@@ -698,22 +698,46 @@ export default {
         ).bind(binLocationId).first();
         
         // Insert items into stock_items
+        // Check if stock_take_id column exists, if not, use the old schema
         const submittedItems = [];
         for (const count of counts.results) {
-          const result = await env.DB.prepare(
-            `INSERT INTO stock_items (stock_take_id, item_name, item_code, quantity, bin_location_id, warehouse_id, company_id, counted_by_manager_id, date)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-          ).bind(
-            stock_take_id,
-            count.item_name || count.item_code,
-            count.item_code,
-            count.quantity,
-            binLocationId,
-            stockTake.warehouse_id,
-            stockTake.company_id,
-            counted_by_manager_id || count.counted_by_manager_id,
-            new Date().toISOString().split('T')[0]
-          ).run();
+          let result;
+          try {
+            // Try new schema with stock_take_id
+            result = await env.DB.prepare(
+              `INSERT INTO stock_items (stock_take_id, item_name, item_code, quantity, bin_location_id, warehouse_id, company_id, counted_by_manager_id, date)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            ).bind(
+              stock_take_id,
+              count.item_name || count.item_code,
+              count.item_code,
+              count.quantity,
+              binLocationId,
+              stockTake.warehouse_id,
+              stockTake.company_id,
+              counted_by_manager_id || count.counted_by_manager_id,
+              new Date().toISOString().split('T')[0]
+            ).run();
+          } catch (error) {
+            // Fallback to old schema without stock_take_id
+            if (error.message && error.message.includes('no column named stock_take_id')) {
+              result = await env.DB.prepare(
+                `INSERT INTO stock_items (item_name, item_code, quantity, bin_location_id, warehouse_id, company_id, counted_by_manager_id, date)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+              ).bind(
+                count.item_name || count.item_code,
+                count.item_code,
+                count.quantity,
+                binLocationId,
+                stockTake.warehouse_id,
+                stockTake.company_id,
+                counted_by_manager_id || count.counted_by_manager_id,
+                new Date().toISOString().split('T')[0]
+              ).run();
+            } else {
+              throw error;
+            }
+          }
           
           submittedItems.push(result.meta.last_row_id);
         }

@@ -1609,7 +1609,14 @@ async function openStockTake() {
         currentStockTake = data.stockTake;
         
         updateStockTakeStatus();
-        alert(`✅ Stock take opened successfully!\n\nManager: ${warehouseManagers[0].manager_name}`);
+        
+        // Notify user and refresh open stock takes list if visible
+        alert(`✅ Stock take opened successfully!\n\nManager: ${warehouseManagers[0].manager_name}\n\nStock Take ID: ${currentStockTake.id}`);
+        
+        // If on open stock takes tab, refresh the list
+        if (document.getElementById('openStockTakesTab')?.classList.contains('active')) {
+            loadOpenStockTakes();
+        }
     } catch (error) {
         alert(`❌ Error: ${error.message}`);
     }
@@ -1733,8 +1740,13 @@ async function handleCounterBinLocationScan() {
             if (stockTakeResponse.ok) {
                 stockTake = await stockTakeResponse.json();
                 // If the response is null or empty, no stock take exists
-                if (!stockTake) {
+                if (!stockTake || stockTake === null) {
                     stockTake = null;
+                } else {
+                    // Verify the stock take matches the bin location
+                    console.log('Found stock take:', stockTake);
+                    console.log('Bin location company_id:', binLocation.company_id, 'warehouse_id:', binLocation.warehouse_id);
+                    console.log('Stock take company_id:', stockTake.company_id, 'warehouse_id:', stockTake.warehouse_id);
                 }
             } else if (stockTakeResponse.status === 404) {
                 // 404 means no stock take found - this is expected, not an error
@@ -1766,8 +1778,14 @@ async function handleCounterBinLocationScan() {
         }
         
         // Verify bin location belongs to the stock take's warehouse/company
-        if (binLocation.company_id != stockTake.company_id || binLocation.warehouse_id != stockTake.warehouse_id) {
-            throw new Error('Bin location does not match the open stock take. Please scan a bin from the correct warehouse.');
+        // Use == for loose comparison to handle string/number mismatches
+        const binCompanyId = parseInt(binLocation.company_id);
+        const binWarehouseId = parseInt(binLocation.warehouse_id);
+        const stockTakeCompanyId = parseInt(stockTake.company_id);
+        const stockTakeWarehouseId = parseInt(stockTake.warehouse_id);
+        
+        if (binCompanyId !== stockTakeCompanyId || binWarehouseId !== stockTakeWarehouseId) {
+            throw new Error(`Bin location does not match the open stock take.\n\nBin: ${binLocation.bin_code}\nBin Company ID: ${binCompanyId}, Warehouse ID: ${binWarehouseId}\nStock Take Company ID: ${stockTakeCompanyId}, Warehouse ID: ${stockTakeWarehouseId}\n\nPlease scan a bin from the correct warehouse.`);
         }
         
         // Set current stock take and bin location
