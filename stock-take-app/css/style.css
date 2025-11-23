@@ -13,7 +13,7 @@ body {
 }
 
 .container {
-    max-width: 800px;
+    max-width: 1200px;
     margin: 0 auto;
     background: white;
     border-radius: 16px;
@@ -39,7 +39,7 @@ header h1 {
     font-size: 1.1rem;
 }
 
-/* Tabs */
+/* Main Tabs */
 .tabs {
     display: flex;
     gap: 0.5rem;
@@ -77,15 +77,72 @@ header h1 {
     display: block;
 }
 
+/* Setup Container */
+.setup-container {
+    width: 100%;
+}
+
+.setup-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 2px solid #e0e0e0;
+    flex-wrap: wrap;
+}
+
+.setup-tab-btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    background: transparent;
+    color: #666;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.3s;
+}
+
+.setup-tab-btn:hover {
+    color: #667eea;
+    background: rgba(102, 126, 234, 0.1);
+}
+
+.setup-tab-btn.active {
+    color: #667eea;
+    border-bottom-color: #667eea;
+}
+
+.setup-content {
+    display: none;
+}
+
+.setup-content.active {
+    display: block;
+}
+
+.setup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.setup-header h2 {
+    color: #333;
+    margin: 0;
+}
+
 /* Form Styles */
 .form-container {
     max-width: 600px;
     margin: 0 auto;
 }
 
-.form-container h2 {
-    margin-bottom: 1.5rem;
-    color: #333;
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
 }
 
 .form-group {
@@ -119,6 +176,42 @@ textarea.form-control {
     min-height: 80px;
 }
 
+.form-hint {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.85rem;
+    color: #666;
+    font-style: italic;
+}
+
+/* Filter Section */
+.filter-section {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.filter-box {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.filter-box label {
+    font-weight: 500;
+    color: #333;
+    font-size: 0.9rem;
+}
+
+.filter-box select {
+    padding: 0.5rem;
+    border: 2px solid #e0e0e0;
+    border-radius: 6px;
+    font-size: 0.95rem;
+}
+
+/* Buttons */
 .btn {
     padding: 0.75rem 1.5rem;
     border: none;
@@ -132,9 +225,6 @@ textarea.form-control {
 .btn-primary {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    width: 100%;
-    padding: 1rem;
-    font-size: 1.1rem;
 }
 
 .btn-primary:hover {
@@ -205,7 +295,7 @@ textarea.form-control {
     border: 1px solid #f5c6cb;
 }
 
-/* View Tab Styles */
+/* View Container */
 .view-container {
     max-width: 100%;
 }
@@ -222,7 +312,7 @@ textarea.form-control {
 }
 
 .search-box {
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
 }
 
 .search-input {
@@ -427,6 +517,14 @@ textarea.form-control {
         flex-direction: column;
     }
     
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .filter-section {
+        grid-template-columns: 1fr;
+    }
+    
     .view-header {
         flex-direction: column;
         gap: 1rem;
@@ -453,5 +551,10 @@ textarea.form-control {
     .modal-actions .btn {
         width: 100%;
     }
+    
+    .setup-header {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: stretch;
+    }
 }
-

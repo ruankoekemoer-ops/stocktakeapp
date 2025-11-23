@@ -3,199 +3,380 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stock Take - View Items</title>
+    <title>Stock Take Management System</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>📦 Stock Take</h1>
-            <p class="subtitle">View items from database</p>
+            <h1>📦 Stock Take Management System</h1>
+            <p class="subtitle">Complete warehouse inventory management</p>
         </header>
 
-        <div class="view-container">
-            <div class="view-header">
-                <h2>Stock Items</h2>
-                <div style="display: flex; gap: 0.5rem;">
-                    <button onclick="openAddModal()" class="btn btn-primary">+ Add Item</button>
+        <nav class="tabs">
+            <button class="tab-btn active" onclick="showTab('setup')">Setup</button>
+            <button class="tab-btn" onclick="showTab('stocktake')">Stock Take</button>
+            <button class="tab-btn" onclick="showTab('view')">View Items</button>
+        </nav>
+
+        <!-- Setup Tab -->
+        <div id="setupTab" class="tab-content active">
+            <div class="setup-container">
+                <div class="setup-tabs">
+                    <button class="setup-tab-btn active" onclick="showSetupTab('companies')">Companies</button>
+                    <button class="setup-tab-btn" onclick="showSetupTab('warehouses')">Warehouses</button>
+                    <button class="setup-tab-btn" onclick="showSetupTab('bin-locations')">Bin Locations</button>
+                    <button class="setup-tab-btn" onclick="showSetupTab('managers')">Managers</button>
+                </div>
+
+                <!-- Companies Setup -->
+                <div id="companiesSetup" class="setup-content active">
+                    <div class="setup-header">
+                        <h2>Company Setup</h2>
+                        <button onclick="openCompanyModal()" class="btn btn-primary">+ Add Company</button>
+                    </div>
+                    <div id="companiesList" class="items-list"></div>
+                </div>
+
+                <!-- Warehouses Setup -->
+                <div id="warehousesSetup" class="setup-content">
+                    <div class="setup-header">
+                        <h2>Warehouse Setup</h2>
+                        <button onclick="openWarehouseModal()" class="btn btn-primary">+ Add Warehouse</button>
+                    </div>
+                    <div class="filter-box">
+                        <label>Filter by Company:</label>
+                        <select id="warehouseCompanyFilter" onchange="loadWarehouses()">
+                            <option value="">All Companies</option>
+                        </select>
+                    </div>
+                    <div id="warehousesList" class="items-list"></div>
+                </div>
+
+                <!-- Bin Locations Setup -->
+                <div id="bin-locationsSetup" class="setup-content">
+                    <div class="setup-header">
+                        <h2>Bin Location Setup</h2>
+                        <button onclick="openBinLocationModal()" class="btn btn-primary">+ Add Bin Location</button>
+                    </div>
+                    <div class="filter-box">
+                        <label>Filter by Warehouse:</label>
+                        <select id="binLocationWarehouseFilter" onchange="loadBinLocations()">
+                            <option value="">All Warehouses</option>
+                        </select>
+                    </div>
+                    <div id="binLocationsList" class="items-list"></div>
+                </div>
+
+                <!-- Managers Setup -->
+                <div id="managersSetup" class="setup-content">
+                    <div class="setup-header">
+                        <h2>Warehouse Manager Setup</h2>
+                        <button onclick="openManagerModal()" class="btn btn-primary">+ Add Manager</button>
+                    </div>
+                    <div class="filter-box">
+                        <label>Filter by Warehouse:</label>
+                        <select id="managerWarehouseFilter" onchange="loadManagers()">
+                            <option value="">All Warehouses</option>
+                        </select>
+                    </div>
+                    <div id="managersList" class="items-list"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stock Take Tab -->
+        <div id="stocktakeTab" class="tab-content">
+            <div class="view-container">
+                <div class="view-header">
+                    <h2>Stock Take Entry</h2>
                     <button onclick="loadItems()" class="btn btn-secondary">Refresh</button>
                 </div>
+
+                <form id="stockTakeForm" onsubmit="handleStockTake(event)">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="stockCompany">Company *</label>
+                            <select id="stockCompany" name="company_id" required onchange="updateWarehousesForStock()" class="form-control">
+                                <option value="">Select Company</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="stockWarehouse">Warehouse *</label>
+                            <select id="stockWarehouse" name="warehouse_id" required onchange="updateManagersAndBins()" class="form-control">
+                                <option value="">Select Warehouse</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="stockManager">Manager *</label>
+                            <select id="stockManager" name="counted_by_manager_id" required class="form-control">
+                                <option value="">Select Manager</option>
+                            </select>
+                            <small class="form-hint">Only managers assigned to selected warehouse can count</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="stockBinLocation">Bin Location</label>
+                            <select id="stockBinLocation" name="bin_location_id" class="form-control">
+                                <option value="">Select Bin Location</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="stockItemName">Item Name *</label>
+                            <input type="text" id="stockItemName" name="item_name" required class="form-control" placeholder="Enter item name">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="stockItemCode">Item Code</label>
+                            <input type="text" id="stockItemCode" name="item_code" class="form-control" placeholder="Enter item code">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="stockQuantity">Quantity *</label>
+                            <input type="number" id="stockQuantity" name="quantity" required min="0" class="form-control" placeholder="Enter quantity">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="stockDate">Date</label>
+                            <input type="date" id="stockDate" name="date" class="form-control">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="stockNotes">Notes</label>
+                        <textarea id="stockNotes" name="notes" rows="3" class="form-control" placeholder="Additional notes"></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="stockTakeBtn">
+                        <span id="stockTakeText">Add Stock Item</span>
+                        <span id="stockTakeSpinner" class="spinner" style="display: none;">⏳</span>
+                    </button>
+                </form>
+
+                <div id="stockTakeResult" class="result-message" style="display: none;"></div>
             </div>
+        </div>
 
-            <div class="search-box">
-                <input 
-                    type="text" 
-                    id="searchInput" 
-                    placeholder="Search items by name, location, or notes..."
-                    class="search-input"
-                    oninput="handleSearch()"
-                >
-            </div>
-
-            <div id="loading" class="loading" style="display: none;">
-                <div class="spinner"></div>
-                <p>Loading items...</p>
-            </div>
-
-            <div id="error" class="error" style="display: none;"></div>
-
-            <div id="itemsContainer" class="items-container">
-                <div id="itemsList" class="items-list">
-                    <!-- Items will be loaded here -->
+        <!-- View Items Tab -->
+        <div id="viewTab" class="tab-content">
+            <div class="view-container">
+                <div class="view-header">
+                    <h2>Stock Items</h2>
+                    <button onclick="loadItems()" class="btn btn-secondary">Refresh</button>
                 </div>
-            </div>
 
-            <div id="noItems" class="no-items" style="display: none;">
-                <p>No items found in database.</p>
+                <div class="filter-section">
+                    <div class="filter-box">
+                        <label>Filter by Warehouse:</label>
+                        <select id="viewWarehouseFilter" onchange="loadItems()">
+                            <option value="">All Warehouses</option>
+                        </select>
+                    </div>
+                    <div class="filter-box">
+                        <label>Filter by Manager:</label>
+                        <select id="viewManagerFilter" onchange="loadItems()">
+                            <option value="">All Managers</option>
+                        </select>
+                    </div>
+                    <div class="search-box">
+                        <input type="text" id="searchInput" placeholder="Search items..." class="search-input" oninput="handleSearch()">
+                    </div>
+                </div>
+
+                <div id="loading" class="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Loading items...</p>
+                </div>
+
+                <div id="error" class="error" style="display: none;"></div>
+
+                <div id="itemsContainer" class="items-container">
+                    <div id="itemsList" class="items-list"></div>
+                </div>
+
+                <div id="noItems" class="no-items" style="display: none;">
+                    <p>No items found.</p>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Add Item Modal -->
-    <div id="addModal" class="modal" style="display: none;">
+    <!-- Company Modal -->
+    <div id="companyModal" class="modal" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Add New Item</h2>
-                <button class="modal-close" onclick="closeAddModal()">&times;</button>
+                <h2 id="companyModalTitle">Add Company</h2>
+                <button class="modal-close" onclick="closeCompanyModal()">&times;</button>
             </div>
-            <form id="addForm" onsubmit="handleAdd(event)">
+            <form id="companyForm" onsubmit="handleCompanySubmit(event)">
+                <input type="hidden" id="companyId" name="id">
                 <div class="form-group">
-                    <label for="addItemName">Item Name *</label>
-                    <input 
-                        type="text" 
-                        id="addItemName" 
-                        name="item_name" 
-                        required
-                        placeholder="Enter item name"
-                        class="form-control"
-                    >
+                    <label for="companyCode">Company Code *</label>
+                    <input type="text" id="companyCode" name="company_code" required class="form-control" placeholder="e.g., COMP001">
                 </div>
-
                 <div class="form-group">
-                    <label for="addQuantity">Quantity *</label>
-                    <input 
-                        type="number" 
-                        id="addQuantity" 
-                        name="quantity" 
-                        required
-                        min="0"
-                        placeholder="Enter quantity"
-                        class="form-control"
-                    >
+                    <label for="companyName">Company Name *</label>
+                    <input type="text" id="companyName" name="company_name" required class="form-control" placeholder="Enter company name">
                 </div>
-
-                <div class="form-group">
-                    <label for="addLocation">Location</label>
-                    <input 
-                        type="text" 
-                        id="addLocation" 
-                        name="location" 
-                        placeholder="e.g., Warehouse A"
-                        class="form-control"
-                    >
-                </div>
-
-                <div class="form-group">
-                    <label for="addDate">Date</label>
-                    <input 
-                        type="date" 
-                        id="addDate" 
-                        name="date" 
-                        class="form-control"
-                    >
-                </div>
-
-                <div class="form-group">
-                    <label for="addNotes">Notes</label>
-                    <textarea 
-                        id="addNotes" 
-                        name="notes" 
-                        rows="3"
-                        placeholder="Additional notes (optional)"
-                        class="form-control"
-                    ></textarea>
-                </div>
-
                 <div class="modal-actions">
-                    <button type="button" onclick="closeAddModal()" class="btn btn-secondary">Cancel</button>
-                    <button type="submit" class="btn btn-primary" id="addBtn">
-                        <span id="addText">Add Item</span>
-                        <span id="addSpinner" class="spinner" style="display: none;">⏳</span>
-                    </button>
+                    <button type="button" onclick="closeCompanyModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Edit Modal -->
-    <div id="editModal" class="modal" style="display: none;">
+    <!-- Warehouse Modal -->
+    <div id="warehouseModal" class="modal" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Edit Item</h2>
-                <button class="modal-close" onclick="closeEditModal()">&times;</button>
+                <h2 id="warehouseModalTitle">Add Warehouse</h2>
+                <button class="modal-close" onclick="closeWarehouseModal()">&times;</button>
             </div>
-            <form id="editForm" onsubmit="handleUpdate(event)">
+            <form id="warehouseForm" onsubmit="handleWarehouseSubmit(event)">
+                <input type="hidden" id="warehouseId" name="id">
+                <div class="form-group">
+                    <label for="warehouseCode">Warehouse Code *</label>
+                    <input type="text" id="warehouseCode" name="warehouse_code" required class="form-control" placeholder="e.g., WH001">
+                </div>
+                <div class="form-group">
+                    <label for="warehouseName">Warehouse Name *</label>
+                    <input type="text" id="warehouseName" name="warehouse_name" required class="form-control" placeholder="Enter warehouse name">
+                </div>
+                <div class="form-group">
+                    <label for="warehouseCompany">Company *</label>
+                    <select id="warehouseCompany" name="company_id" required class="form-control">
+                        <option value="">Select Company</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="warehouseAddress">Address</label>
+                    <textarea id="warehouseAddress" name="address" rows="2" class="form-control" placeholder="Enter address"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" onclick="closeWarehouseModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Bin Location Modal -->
+    <div id="binLocationModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="binLocationModalTitle">Add Bin Location</h2>
+                <button class="modal-close" onclick="closeBinLocationModal()">&times;</button>
+            </div>
+            <form id="binLocationForm" onsubmit="handleBinLocationSubmit(event)">
+                <input type="hidden" id="binLocationId" name="id">
+                <div class="form-group">
+                    <label for="binCode">Bin Code *</label>
+                    <input type="text" id="binCode" name="bin_code" required class="form-control" placeholder="e.g., A1-B2-C3">
+                </div>
+                <div class="form-group">
+                    <label for="binName">Bin Name</label>
+                    <input type="text" id="binName" name="bin_name" class="form-control" placeholder="Enter bin name">
+                </div>
+                <div class="form-group">
+                    <label for="binWarehouse">Warehouse *</label>
+                    <select id="binWarehouse" name="warehouse_id" required class="form-control">
+                        <option value="">Select Warehouse</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="binAisle">Aisle</label>
+                        <input type="text" id="binAisle" name="aisle" class="form-control" placeholder="e.g., A">
+                    </div>
+                    <div class="form-group">
+                        <label for="binShelf">Shelf</label>
+                        <input type="text" id="binShelf" name="shelf" class="form-control" placeholder="e.g., 1">
+                    </div>
+                    <div class="form-group">
+                        <label for="binLevel">Level</label>
+                        <input type="text" id="binLevel" name="level" class="form-control" placeholder="e.g., 2">
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" onclick="closeBinLocationModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Manager Modal -->
+    <div id="managerModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="managerModalTitle">Add Warehouse Manager</h2>
+                <button class="modal-close" onclick="closeManagerModal()">&times;</button>
+            </div>
+            <form id="managerForm" onsubmit="handleManagerSubmit(event)">
+                <input type="hidden" id="managerId" name="id">
+                <div class="form-group">
+                    <label for="managerName">Manager Name *</label>
+                    <input type="text" id="managerName" name="manager_name" required class="form-control" placeholder="Enter manager name">
+                </div>
+                <div class="form-group">
+                    <label for="managerWarehouse">Warehouse *</label>
+                    <select id="managerWarehouse" name="warehouse_id" required class="form-control">
+                        <option value="">Select Warehouse</option>
+                    </select>
+                    <small class="form-hint">Manager can only count items for this warehouse</small>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="managerEmail">Email</label>
+                        <input type="email" id="managerEmail" name="email" class="form-control" placeholder="Enter email">
+                    </div>
+                    <div class="form-group">
+                        <label for="managerPhone">Phone</label>
+                        <input type="tel" id="managerPhone" name="phone" class="form-control" placeholder="Enter phone">
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" onclick="closeManagerModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Item Modal -->
+    <div id="editItemModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Stock Item</h2>
+                <button class="modal-close" onclick="closeEditItemModal()">&times;</button>
+            </div>
+            <form id="editItemForm" onsubmit="handleUpdateItem(event)">
                 <input type="hidden" id="editItemId" name="id">
-                
                 <div class="form-group">
                     <label for="editItemName">Item Name *</label>
-                    <input 
-                        type="text" 
-                        id="editItemName" 
-                        name="item_name" 
-                        required
-                        class="form-control"
-                    >
+                    <input type="text" id="editItemName" name="item_name" required class="form-control">
                 </div>
-
+                <div class="form-group">
+                    <label for="editItemCode">Item Code</label>
+                    <input type="text" id="editItemCode" name="item_code" class="form-control">
+                </div>
                 <div class="form-group">
                     <label for="editQuantity">Quantity *</label>
-                    <input 
-                        type="number" 
-                        id="editQuantity" 
-                        name="quantity" 
-                        required
-                        min="0"
-                        class="form-control"
-                    >
+                    <input type="number" id="editQuantity" name="quantity" required min="0" class="form-control">
                 </div>
-
-                <div class="form-group">
-                    <label for="editLocation">Location</label>
-                    <input 
-                        type="text" 
-                        id="editLocation" 
-                        name="location" 
-                        class="form-control"
-                    >
-                </div>
-
-                <div class="form-group">
-                    <label for="editDate">Date</label>
-                    <input 
-                        type="date" 
-                        id="editDate" 
-                        name="date" 
-                        class="form-control"
-                    >
-                </div>
-
-                <div class="form-group">
-                    <label for="editNotes">Notes</label>
-                    <textarea 
-                        id="editNotes" 
-                        name="notes" 
-                        rows="3"
-                        class="form-control"
-                    ></textarea>
-                </div>
-
                 <div class="modal-actions">
-                    <button type="button" onclick="closeEditModal()" class="btn btn-secondary">Cancel</button>
-                    <button type="submit" class="btn btn-primary" id="updateBtn">
-                        <span id="updateText">Update Item</span>
-                        <span id="updateSpinner" class="spinner" style="display: none;">⏳</span>
-                    </button>
+                    <button type="button" onclick="closeEditItemModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update</button>
                 </div>
             </form>
         </div>

@@ -1,86 +1,102 @@
-# Stock Take App
+# Stock Take Management System
 
-A simple web application for managing stock items with Cloudflare D1 database integration.
+A comprehensive warehouse inventory management system with company, warehouse, bin location, and manager setup.
 
 ## Features
 
-✅ **View Items** - Browse all stock items from the database  
-✅ **Add Items** - Create new stock items  
-✅ **Update Items** - Edit existing items  
-✅ **Search** - Real-time search functionality  
+✅ **Company Management** - Multiple companies support  
+✅ **Warehouse Setup** - Warehouses linked to companies  
+✅ **Bin Location Setup** - Detailed location tracking (aisle, shelf, level)  
+✅ **Manager Setup** - Warehouse managers with authorization  
+✅ **Stock Take** - Manager-authorized inventory counting  
+✅ **View & Search** - Filter by warehouse, manager, search items  
 ✅ **Cloudflare D1** - Serverless SQLite database  
-
-## Project Structure
-
-```
-.
-├── stock-take-app/          # Frontend web application
-│   ├── index.html          # Main app page
-│   ├── css/                # Stylesheets
-│   └── js/                 # JavaScript files
-│
-├── cloudflare-worker/       # Backend API (Cloudflare Worker)
-│   ├── src/index.js       # Worker API code
-│   ├── schema.sql         # Database schema
-│   └── wrangler.toml      # Worker configuration
-│
-└── sql-server/             # Local SQL server (alternative)
-    ├── server.py          # Flask API server
-    └── setup.sql          # Database schema
-```
 
 ## Quick Start
 
-### 1. Set Up Cloudflare D1 Database
+### 1. Update Database Schema
 
 ```bash
 cd cloudflare-worker
 npx wrangler d1 execute stocktakedata --file=./schema.sql --remote
 ```
 
-### 2. Deploy Cloudflare Worker
+### 2. Build and Deploy
 
 ```bash
 cd cloudflare-worker
-npm install
+node build-static-files.js
 npm run deploy
 ```
 
-### 3. Update Frontend Config
+### 3. Setup Order
 
-Edit `stock-take-app/js/config.js` and set your Worker URL:
+1. **Companies** - Create your companies
+2. **Warehouses** - Create warehouses for each company
+3. **Bin Locations** - Set up bin locations in warehouses
+4. **Managers** - Assign managers to warehouses
+5. **Stock Take** - Start counting inventory
 
-```javascript
-apiUrl: 'https://your-worker-url.workers.dev/api',
+## App Structure
+
+### Setup Tab
+- **Companies** - Manage companies
+- **Warehouses** - Manage warehouses (filter by company)
+- **Bin Locations** - Manage bin locations (filter by warehouse)
+- **Managers** - Manage warehouse managers (filter by warehouse)
+
+### Stock Take Tab
+- Select company → warehouse → manager → bin location
+- Enter item details
+- Manager authorization is automatically validated
+
+### View Items Tab
+- View all stock items
+- Filter by warehouse or manager
+- Search items
+- Edit and delete items
+
+## Manager Authorization
+
+**Important:** Managers can only count items for warehouses they're assigned to.
+
+- When creating a stock item, the system verifies the manager is assigned to the selected warehouse
+- Returns error if manager is not authorized
+- This ensures data integrity and proper access control
+
+## Database Schema
+
 ```
-
-### 4. Open the App
-
-Open `stock-take-app/index.html` in your browser.
-
-## Documentation
-
-- `SETUP.md` - Detailed setup instructions
-- `DEPLOY-CLOUDFLARE.md` - Cloudflare deployment guide
-- `cloudflare-worker/README.md` - Worker documentation
-- `stock-take-app/README.md` - Frontend documentation
+companies
+  ├── id, company_code, company_name
+  └── warehouses
+       ├── id, warehouse_code, warehouse_name, company_id, address
+       ├── bin_locations
+       │    └── id, bin_code, bin_name, warehouse_id, aisle, shelf, level
+       ├── warehouse_managers
+       │    └── id, manager_name, email, phone, warehouse_id, is_active
+       └── stock_items
+            └── id, item_name, item_code, quantity, company_id, warehouse_id, 
+                bin_location_id, counted_by_manager_id, date, notes
+```
 
 ## API Endpoints
 
-- `GET /api/items` - Get all items
-- `GET /api/items/:id` - Get item by ID
-- `POST /api/items` - Create new item
-- `PUT /api/items/:id` - Update item
-- `DELETE /api/items/:id` - Delete item
+- **Companies**: `/api/companies`
+- **Warehouses**: `/api/warehouses`
+- **Bin Locations**: `/api/bin-locations`
+- **Managers**: `/api/managers`
+- **Stock Items**: `/api/items`
+
+See API documentation at: `https://stock-take-api.rkoekemoer.workers.dev/api`
 
 ## Technologies
 
 - **Frontend**: HTML, CSS, JavaScript
 - **Backend**: Cloudflare Workers
 - **Database**: Cloudflare D1 (SQLite)
-- **Deployment**: Cloudflare Workers
+- **Hosting**: Cloudflare Workers
 
 ## License
 
 MIT
-
