@@ -375,6 +375,7 @@ export default {
       }
 
       // Get active (open) stock take for warehouse/company
+      // Stock takes are opened at Company + Warehouse level, not bin location level
       if (path === '/api/stock-takes/active' && request.method === 'GET') {
         const companyId = url.searchParams.get('company_id');
         const warehouseId = url.searchParams.get('warehouse_id');
@@ -386,6 +387,12 @@ export default {
           });
         }
         
+        // Convert to integers to ensure proper comparison
+        const companyIdInt = parseInt(companyId);
+        const warehouseIdInt = parseInt(warehouseId);
+        
+        // Query for open stock take matching company and warehouse
+        // Any bin location in this warehouse/company can be counted against this stock take
         const result = await env.DB.prepare(
           `SELECT st.*, 
             c.company_name, 
@@ -398,7 +405,7 @@ export default {
           WHERE st.company_id = ? AND st.warehouse_id = ? AND st.status = 'open'
           ORDER BY st.opened_at DESC
           LIMIT 1`
-        ).bind(companyId, warehouseId).first();
+        ).bind(companyIdInt, warehouseIdInt).first();
         
         return new Response(JSON.stringify(result || null), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
