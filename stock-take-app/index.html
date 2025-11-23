@@ -6,6 +6,8 @@
     <title>Stock Take Management System</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <!-- Microsoft Authentication Library (MSAL.js) -->
+    <script src="https://alcdn.msauth.net/browser/2.38.1/js/msal-browser.min.js"></script>
 </head>
 <body>
     <!-- Toast Notification Container -->
@@ -49,6 +51,8 @@
             <header class="app-header" id="appHeader">
                 <div class="header-title" id="pageTitle">Stock Take</div>
                 <div class="header-actions" id="headerActions">
+                    <div id="userInfo" class="user-info" style="display: none;"></div>
+                    <button id="authButton" onclick="signIn()" class="btn btn-primary btn-small">Sign in with Microsoft</button>
                     <span class="role-badge" id="roleBadge">Manager</span>
                     <button onclick="switchRole()" class="btn-switch-role">Switch Role</button>
                 </div>
@@ -193,6 +197,8 @@
                                             min="0" 
                                             value="1"
                                             required
+                                            inputmode="numeric"
+                                            pattern="[0-9]*"
                                         >
                                     </div>
                                 </div>
@@ -314,30 +320,51 @@
 
                     <!-- View Items Tab -->
                     <div id="viewTab" class="tab-content">
-                        <div class="page-header">
-                            <h1 class="page-title">View Items</h1>
-                            <p class="page-subtitle">Browse and manage stock items</p>
-                        </div>
-                        <div class="card">
-                            <div class="card-header">
-                                <h2 class="card-title">Stock Items</h2>
-                            </div>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label>Filter by Company</label>
-                                    <select id="viewCompanyFilter" class="form-control" onchange="loadItems()">
-                                        <option value="">All Companies</option>
-                                    </select>
+                        <div class="view-items-page">
+                            <div class="view-items-header">
+                                <div>
+                                    <h1 class="page-title">Stock Items</h1>
+                                    <p class="page-subtitle">View and manage all stock items</p>
                                 </div>
-                                <div class="form-group">
-                                    <label>Filter by Warehouse</label>
-                                    <select id="viewWarehouseFilter" class="form-control" onchange="loadItems()">
-                                        <option value="">All Warehouses</option>
-                                    </select>
+                                <button onclick="loadItems()" class="btn btn-secondary">Refresh</button>
+                            </div>
+                            
+                            <div class="view-items-filters">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Filter by Company</label>
+                                        <select id="viewCompanyFilter" class="form-control" onchange="applyViewFilters()">
+                                            <option value="">All Companies</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Filter by Warehouse</label>
+                                        <select id="viewWarehouseFilter" class="form-control" onchange="applyViewFilters()">
+                                            <option value="">All Warehouses</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Search Items</label>
+                                        <input 
+                                            type="text" 
+                                            id="viewItemsSearch" 
+                                            class="form-control" 
+                                            placeholder="Search by item code or name..."
+                                            onkeyup="applyViewFilters()"
+                                        >
+                                    </div>
                                 </div>
                             </div>
-                            <div id="itemsList" class="items-list"></div>
-                            <div id="noItems" class="no-items" style="display: none;">No items found in database.</div>
+                            
+                            <div class="view-items-content">
+                                <div id="viewItemsLoading" class="loading-state" style="display: none;">
+                                    <p>Loading items...</p>
+                                </div>
+                                <div id="viewItemsList" class="view-items-grid"></div>
+                                <div id="viewItemsEmpty" class="no-items" style="display: none;">
+                                    <p>No items found.</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -475,6 +502,7 @@
     </div>
 
     <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>

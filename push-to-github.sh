@@ -13,17 +13,15 @@ git add .
 
 # Commit changes
 echo "💾 Committing changes..."
-git commit -m "Complete app redesign with modern dark mode UI
+git commit -m "Add Microsoft authentication and improve counter workflow
 
-- Redesigned entire app with modern dark mode theme
-- Implemented sidebar navigation for desktop and bottom nav for mobile
-- Removed all emojis from main interface (kept only in role selection)
-- Counter role now sees ONLY the counting interface (no navigation, headers, or other tabs)
-- Manager role sees full interface with all features
-- Added Switch Role functionality to return to role selection
-- Replaced all alert() pop-ups with modern toast notifications
-- Improved responsive design for mobile and desktop
-- Clean, professional app-style interface"
+- Implemented Microsoft authentication using MSAL.js
+- Added sign in/sign out functionality with user info display
+- Counter improvements: number pad for quantity input, auto-launch scanner after adding item
+- Redesigned View Items screen as full-screen page with proper data display
+- Added comprehensive filtering and search for stock items
+- Improved card-based layout for better data visualization
+- Added MICROSOFT-AUTH-SETUP.md guide for Azure AD configuration"
 
 # Push to GitHub
 echo "📤 Pushing to GitHub..."

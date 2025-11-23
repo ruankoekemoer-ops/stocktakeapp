@@ -441,7 +441,12 @@ function showTab(tabName, clickedElement) {
         // Update stock take status
         updateStockTakeStatus();
     } else if (tabName === 'view') {
-        loadItems();
+        updateViewFilters();
+        if (allItems.length === 0) {
+            loadItems();
+        } else {
+            applyViewFilters();
+        }
     } else if (tabName === 'openStockTakes') {
         loadOpenStockTakes();
     }
@@ -1473,42 +1478,140 @@ window.handleStockTake = handleStockTake;
 
 // ========== VIEW ITEMS ==========
 async function loadItems() {
-    const loadingEl = document.getElementById('loadingStock');
-    const errorEl = document.getElementById('errorStock');
-    const itemsListEl = document.getElementById('stockItemsList');
-    const noItemsEl = document.getElementById('noStockItems');
+    const loadingEl = document.getElementById('viewItemsLoading');
+    const itemsListEl = document.getElementById('viewItemsList');
+    const noItemsEl = document.getElementById('viewItemsEmpty');
     
     if (loadingEl) loadingEl.style.display = 'block';
-    if (errorEl) errorEl.style.display = 'none';
+    if (noItemsEl) noItemsEl.style.display = 'none';
     if (itemsListEl) itemsListEl.innerHTML = '';
     
     try {
-        const searchTerm = document.getElementById('searchStockInput')?.value || '';
-        
-        let url = `${CONFIG.apiUrl}/items`;
-        if (searchTerm) {
-            url += `?search=${encodeURIComponent(searchTerm)}`;
-        }
-        
-        const response = await fetch(url);
+        const response = await fetch(`${CONFIG.apiUrl}/items`);
         if (!response.ok) throw new Error(`Server error: ${response.status}`);
         
         allItems = await response.json();
-        filteredItems = [...allItems];
         
-        displayItems(filteredItems);
+        // Apply filters
+        applyViewFilters();
         
     } catch (error) {
         console.error('Error loading items:', error);
-        if (errorEl) {
-            errorEl.style.display = 'block';
-            errorEl.textContent = `Error loading items: ${error.message}`;
-        }
+        showToast('Error loading items: ' + error.message, 'error', 5000);
+        if (itemsListEl) itemsListEl.innerHTML = '<div class="error-message">Failed to load items. Please try again.</div>';
     } finally {
         if (loadingEl) loadingEl.style.display = 'none';
     }
 }
 window.loadItems = loadItems;
+
+function applyViewFilters() {
+    const companyFilter = document.getElementById('viewCompanyFilter')?.value || '';
+    const warehouseFilter = document.getElementById('viewWarehouseFilter')?.value || '';
+    const searchTerm = document.getElementById('viewItemsSearch')?.value.toLowerCase().trim() || '';
+    
+    let filtered = [...allItems];
+    
+    // Filter by company
+    if (companyFilter) {
+        filtered = filtered.filter(item => item.company_id == companyFilter);
+    }
+    
+    // Filter by warehouse
+    if (warehouseFilter) {
+        filtered = filtered.filter(item => item.warehouse_id == warehouseFilter);
+    }
+    
+    // Filter by search term
+    if (searchTerm) {
+        filtered = filtered.filter(item => 
+            (item.item_code && item.item_code.toLowerCase().includes(searchTerm)) ||
+            (item.item_name && item.item_name.toLowerCase().includes(searchTerm))
+        );
+    }
+    
+    displayViewItems(filtered);
+}
+window.applyViewFilters = applyViewFilters;
+
+function displayViewItems(items) {
+    const itemsListEl = document.getElementById('viewItemsList');
+    const noItemsEl = document.getElementById('viewItemsEmpty');
+    
+    if (!itemsListEl) return;
+    
+    if (items.length === 0) {
+        itemsListEl.innerHTML = '';
+        if (noItemsEl) noItemsEl.style.display = 'block';
+        return;
+    }
+    
+    if (noItemsEl) noItemsEl.style.display = 'none';
+    
+    // Get company and warehouse names for display
+    const getCompanyName = (id) => {
+        const company = companies.find(c => c.id == id);
+        return company ? company.company_name : `Company ${id}`;
+    };
+    
+    const getWarehouseName = (id) => {
+        const warehouse = warehouses.find(w => w.id == id);
+        return warehouse ? warehouse.warehouse_name : `Warehouse ${id}`;
+    };
+    
+    const getBinLocationCode = (id) => {
+        if (!id) return 'N/A';
+        const bin = binLocations.find(b => b.id == id);
+        return bin ? bin.bin_code : `Bin ${id}`;
+    };
+    
+    itemsListEl.innerHTML = items.map(item => `
+        <div class="view-item-card">
+            <div class="view-item-header">
+                <div>
+                    <h3 class="view-item-name">${escapeHtml(item.item_name || 'Unnamed Item')}</h3>
+                    ${item.item_code ? `<p class="view-item-code">Code: ${escapeHtml(item.item_code)}</p>` : ''}
+                </div>
+                <div class="view-item-quantity">
+                    <span class="quantity-value">${item.quantity || 0}</span>
+                    <span class="quantity-label">Qty</span>
+                </div>
+            </div>
+            <div class="view-item-details">
+                <div class="view-item-detail-row">
+                    <span class="detail-label">Company:</span>
+                    <span class="detail-value">${escapeHtml(getCompanyName(item.company_id))}</span>
+                </div>
+                <div class="view-item-detail-row">
+                    <span class="detail-label">Warehouse:</span>
+                    <span class="detail-value">${escapeHtml(getWarehouseName(item.warehouse_id))}</span>
+                </div>
+                ${item.bin_location_id ? `
+                <div class="view-item-detail-row">
+                    <span class="detail-label">Bin Location:</span>
+                    <span class="detail-value">${escapeHtml(getBinLocationCode(item.bin_location_id))}</span>
+                </div>
+                ` : ''}
+                ${item.date ? `
+                <div class="view-item-detail-row">
+                    <span class="detail-label">Date:</span>
+                    <span class="detail-value">${escapeHtml(item.date)}</span>
+                </div>
+                ` : ''}
+                ${item.notes ? `
+                <div class="view-item-detail-row">
+                    <span class="detail-label">Notes:</span>
+                    <span class="detail-value">${escapeHtml(item.notes)}</span>
+                </div>
+                ` : ''}
+            </div>
+            <div class="view-item-actions">
+                <button onclick="openEditItemModal(${item.id})" class="btn btn-small btn-secondary">Edit</button>
+                <button onclick="deleteItem(${item.id})" class="btn btn-small btn-danger">Delete</button>
+            </div>
+        </div>
+    `).join('');
+}
 
 function updateViewFilters() {
     // Update warehouse filter
@@ -2106,9 +2209,16 @@ async function handleItemCodeScan() {
         return;
     }
     
-    // Auto-focus on quantity input
-    document.getElementById('itemQuantityInput').focus();
-    document.getElementById('itemQuantityInput').select();
+    // Auto-focus on quantity input and open number pad
+    setTimeout(() => {
+        const quantityInput = document.getElementById('itemQuantityInput');
+        if (quantityInput) {
+            quantityInput.focus();
+            quantityInput.select();
+            // Trigger click to open number pad on mobile
+            quantityInput.click();
+        }
+    }, 100);
 }
 window.handleItemCodeScan = handleItemCodeScan;
 
@@ -2162,13 +2272,18 @@ async function addItemToBin() {
         // Clear inputs
         document.getElementById('itemCodeInput').value = '';
         document.getElementById('itemNameInput').value = '';
-        document.getElementById('itemQuantityInput').value = '0';
-        
-        // Focus back on item code for next scan
-        document.getElementById('itemCodeInput').focus();
+        document.getElementById('itemQuantityInput').value = '1';
         
         // Reload bin items
         loadBinItems();
+        
+        // Automatically launch QR scanner for next item
+        setTimeout(() => {
+            const itemCodeInput = document.getElementById('itemCodeInput');
+            if (itemCodeInput) {
+                startQRScan('itemCodeInput', handleItemCodeScan);
+            }
+        }, 300);
     } catch (error) {
         showToast(error.message, 'error', 6000);
     }
