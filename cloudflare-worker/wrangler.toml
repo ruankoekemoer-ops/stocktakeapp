@@ -1,0 +1,16 @@
+name = "stock-take-api"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# D1 Database binding
+# The database_id should match your Cloudflare D1 database ID
+# You can find this in your Cloudflare dashboard under D1 > Your Database
+[[d1_databases]]
+binding = "DB"
+database_id = "7b0985e4-b27d-4c39-9438-0b638ae8b469"
+# Note: database_name is optional - the ID is what matters
+
+# Uncomment and configure if you need environment variables
+# [vars]
+# ENVIRONMENT = "production"
+

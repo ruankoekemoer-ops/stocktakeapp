@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Take - View Items</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📦 Stock Take</h1>
+            <p class="subtitle">View items from database</p>
+        </header>
+
+        <div class="view-container">
+            <div class="view-header">
+                <h2>Stock Items</h2>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button onclick="openAddModal()" class="btn btn-primary">+ Add Item</button>
+                    <button onclick="loadItems()" class="btn btn-secondary">Refresh</button>
+                </div>
+            </div>
+
+            <div class="search-box">
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    placeholder="Search items by name, location, or notes..."
+                    class="search-input"
+                    oninput="handleSearch()"
+                >
+            </div>
+
+            <div id="loading" class="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Loading items...</p>
+            </div>
+
+            <div id="error" class="error" style="display: none;"></div>
+
+            <div id="itemsContainer" class="items-container">
+                <div id="itemsList" class="items-list">
+                    <!-- Items will be loaded here -->
+                </div>
+            </div>
+
+            <div id="noItems" class="no-items" style="display: none;">
+                <p>No items found in database.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Item Modal -->
+    <div id="addModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add New Item</h2>
+                <button class="modal-close" onclick="closeAddModal()">&times;</button>
+            </div>
+            <form id="addForm" onsubmit="handleAdd(event)">
+                <div class="form-group">
+                    <label for="addItemName">Item Name *</label>
+                    <input 
+                        type="text" 
+                        id="addItemName" 
+                        name="item_name" 
+                        required
+                        placeholder="Enter item name"
+                        class="form-control"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="addQuantity">Quantity *</label>
+                    <input 
+                        type="number" 
+                        id="addQuantity" 
+                        name="quantity" 
+                        required
+                        min="0"
+                        placeholder="Enter quantity"
+                        class="form-control"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="addLocation">Location</label>
+                    <input 
+                        type="text" 
+                        id="addLocation" 
+                        name="location" 
+                        placeholder="e.g., Warehouse A"
+                        class="form-control"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="addDate">Date</label>
+                    <input 
+                        type="date" 
+                        id="addDate" 
+                        name="date" 
+                        class="form-control"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="addNotes">Notes</label>
+                    <textarea 
+                        id="addNotes" 
+                        name="notes" 
+                        rows="3"
+                        placeholder="Additional notes (optional)"
+                        class="form-control"
+                    ></textarea>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" onclick="closeAddModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="addBtn">
+                        <span id="addText">Add Item</span>
+                        <span id="addSpinner" class="spinner" style="display: none;">⏳</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="editModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Item</h2>
+                <button class="modal-close" onclick="closeEditModal()">&times;</button>
+            </div>
+            <form id="editForm" onsubmit="handleUpdate(event)">
+                <input type="hidden" id="editItemId" name="id">
+                
+                <div class="form-group">
+                    <label for="editItemName">Item Name *</label>
+                    <input 
+                        type="text" 
+                        id="editItemName" 
+                        name="item_name" 
+                        required
+                        class="form-control"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="editQuantity">Quantity *</label>
+                    <input 
+                        type="number" 
+                        id="editQuantity" 
+                        name="quantity" 
+                        required
+                        min="0"
+                        class="form-control"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="editLocation">Location</label>
+                    <input 
+                        type="text" 
+                        id="editLocation" 
+                        name="location" 
+                        class="form-control"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="editDate">Date</label>
+                    <input 
+                        type="date" 
+                        id="editDate" 
+                        name="date" 
+                        class="form-control"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="editNotes">Notes</label>
+                    <textarea 
+                        id="editNotes" 
+                        name="notes" 
+                        rows="3"
+                        class="form-control"
+                    ></textarea>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" onclick="closeEditModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="updateBtn">
+                        <span id="updateText">Update Item</span>
+                        <span id="updateSpinner" class="spinner" style="display: none;">⏳</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
