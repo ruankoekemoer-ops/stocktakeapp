@@ -78,6 +78,62 @@ header h1 {
 }
 
 /* Setup Container */
+/* Company Selector Section */
+.company-selector-section {
+    background: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 2rem;
+    border: 2px solid #e0e0e0;
+}
+
+.selector-with-button {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+}
+
+.selector-with-button .form-group {
+    flex: 1;
+}
+
+.selector-with-button .btn {
+    white-space: nowrap;
+}
+
+/* Setup Sections */
+.setup-section {
+    margin-bottom: 2rem;
+}
+
+.setup-subsection {
+    background: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    border: 1px solid #e0e0e0;
+}
+
+.subsection-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.subsection-header h3 {
+    color: #667eea;
+    font-size: 1.3rem;
+    margin: 0;
+}
+
+.btn-small {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+}
+
 .setup-container {
     width: 100%;
 }

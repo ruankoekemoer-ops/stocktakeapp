@@ -1,39 +1,42 @@
 #!/bin/bash
-# Script to push everything to GitHub repository
-# Note: Use Git credential helper or environment variable for token
 
-set -e
+# Push changes to GitHub
+# This script safely pushes all changes without exposing tokens
 
-REPO_URL="https://github.com/ruankoekemoer-ops/stocktakeapp.git"
+cd "/Users/ruankoekemoer/Sharepoint Test"
 
-echo "🚀 Setting up Git repository and pushing to GitHub..."
-echo ""
+echo "🚀 Pushing to GitHub repository..."
 
-# Check if git is initialized
-if [ ! -d ".git" ]; then
-    echo "📦 Initializing Git repository..."
+# Check if we're in a git repository
+if [ ! -d .git ]; then
+    echo "❌ Error: Not a git repository. Initializing..."
     git init
+    git remote add origin https://github.com/ruankoekemoer-ops/stocktakeapp.git 2>/dev/null || true
 fi
 
-# Add remote (force update if exists)
-echo "🔗 Setting up remote repository..."
-git remote remove origin 2>/dev/null || true
-git remote add origin "$REPO_URL"
-
-# Add all files
+# Add all changes
 echo "📝 Adding files..."
 git add .
 
-# Commit
+# Check if there are changes to commit
+if git diff --staged --quiet; then
+    echo "ℹ️  No changes to commit."
+    exit 0
+fi
+
+# Commit changes
 echo "💾 Committing changes..."
-git commit -m "Initial commit: Stock Take App with Cloudflare D1 integration" || echo "No changes to commit"
+git commit -m "Redesign: Single company settings screen with improved dropdown flows
+
+- Consolidated setup into single company-centric settings screen
+- Fixed all dropdown dependencies and cascading updates
+- Improved error prevention and validation
+- Enhanced UI with better organization
+- All modals pre-populate with selected company
+- Auto-select newly created companies"
 
 # Push to GitHub
 echo "🚀 Pushing to GitHub..."
-git branch -M main
-git push -u origin main --force
+git push -u origin main 2>&1 || git push -u origin master 2>&1
 
-echo ""
-echo "✅ Successfully pushed to GitHub!"
-echo "📍 Repository: $REPO_URL"
-
+echo "✅ Done!"

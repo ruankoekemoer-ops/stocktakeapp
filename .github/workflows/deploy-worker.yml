@@ -27,6 +27,10 @@ jobs:
         working-directory: ./cloudflare-worker
         run: npm install
       
+      - name: Build static files
+        working-directory: ./cloudflare-worker
+        run: npm run build
+      
       - name: Deploy to Cloudflare Workers
         working-directory: ./cloudflare-worker
         env:

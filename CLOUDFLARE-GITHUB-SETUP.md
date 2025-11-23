@@ -22,7 +22,8 @@ This guide will help you connect your GitHub repository to Cloudflare for automa
    - **Project name**: `stock-take-api`
    - **Production branch**: `main`
    - **Root directory**: `cloudflare-worker`
-   - **Build command**: `npm install`
+   - **Build command**: `npm install && npm run build`
+   - **Deploy command**: `npx wrangler deploy`
    - **Build output directory**: (leave empty for Workers)
 
 4. **Environment Variables** (if needed)

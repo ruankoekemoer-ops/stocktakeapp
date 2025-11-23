@@ -13,4 +13,3 @@ database_id = "7b0985e4-b27d-4c39-9438-0b638ae8b469"
 # Uncomment and configure if you need environment variables
 # [vars]
 # ENVIRONMENT = "production"
-
