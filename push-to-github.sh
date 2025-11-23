@@ -1,12 +1,10 @@
 #!/bin/bash
 # Script to push everything to GitHub repository
+# Note: Use Git credential helper or environment variable for token
 
 set -e
 
-GITHUB_TOKEN="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"
 REPO_URL="https://github.com/ruankoekemoer-ops/stocktakeapp.git"
-# Use token in URL for authentication
-AUTH_REPO_URL="https://${GITHUB_TOKEN}@github.com/ruankoekemoer-ops/stocktakeapp.git"
 
 echo "🚀 Setting up Git repository and pushing to GitHub..."
 echo ""
@@ -20,7 +18,7 @@ fi
 # Add remote (force update if exists)
 echo "🔗 Setting up remote repository..."
 git remote remove origin 2>/dev/null || true
-git remote add origin "$AUTH_REPO_URL"
+git remote add origin "$REPO_URL"
 
 # Add all files
 echo "📝 Adding files..."

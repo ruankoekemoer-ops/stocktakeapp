@@ -31,6 +31,12 @@ Thumbs.db
 *.log
 logs/
 
+# GitHub tokens and secrets
+*github*token*
+*secret*
+*.key
+*.pem
+
 # IDE
 .vscode/
 .idea/

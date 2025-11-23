@@ -1,5 +1,5 @@
 #!/bin/bash
-# Quick push script with GitHub token
+# Safe push script - uses environment variable for token
 
 set -e
 
@@ -7,6 +7,19 @@ cd "/Users/ruankoekemoer/Sharepoint Test"
 
 echo "🚀 Pushing to GitHub repository..."
 echo ""
+
+# Check for token
+if [ -z "$GITHUB_TOKEN" ]; then
+    echo "⚠️  GITHUB_TOKEN environment variable not set."
+    echo "   Set it with: export GITHUB_TOKEN=your_token_here"
+    echo "   Or you'll be prompted for credentials."
+    echo ""
+    read -p "Continue anyway? (y/n) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
+fi
 
 # Initialize git if needed
 if [ ! -d ".git" ]; then
@@ -18,19 +31,17 @@ fi
 git config user.name "ruankoekemoer-ops" || true
 git config user.email "rkoekemoer@masterdrilling.com" || true
 
-# Add remote (use credential helper for authentication)
+# Add remote
 echo "🔗 Setting up remote repository..."
 git remote remove origin 2>/dev/null || true
 git remote add origin https://github.com/ruankoekemoer-ops/stocktakeapp.git
 
-# Set up credential helper to use token from environment
-echo "🔐 Setting up authentication..."
+# Set up authentication if token is provided
 if [ -n "$GITHUB_TOKEN" ]; then
+    echo "🔐 Configuring authentication..."
     git config credential.helper store
     echo "https://${GITHUB_TOKEN}@github.com" > ~/.git-credentials
-else
-    echo "⚠️  GITHUB_TOKEN not set. You'll be prompted for credentials."
-    echo "   Or set it with: export GITHUB_TOKEN=your_token_here"
+    chmod 600 ~/.git-credentials
 fi
 
 # Add all files
