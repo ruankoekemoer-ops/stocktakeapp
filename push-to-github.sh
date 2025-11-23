@@ -13,15 +13,13 @@ git add .
 
 # Commit changes
 echo "💾 Committing changes..."
-git commit -m "Add Microsoft authentication and improve counter workflow
+git commit -m "Fix Microsoft authentication: require login before access
 
-- Implemented Microsoft authentication using MSAL.js
-- Added sign in/sign out functionality with user info display
-- Counter improvements: number pad for quantity input, auto-launch scanner after adding item
-- Redesigned View Items screen as full-screen page with proper data display
-- Added comprehensive filtering and search for stock items
-- Improved card-based layout for better data visualization
-- Added MICROSOFT-AUTH-SETUP.md guide for Azure AD configuration"
+- Fixed sign-in button to properly trigger authentication
+- Added login screen that blocks access until user signs in
+- Users must authenticate before selecting role or accessing app
+- Improved error handling and user feedback for auth flow
+- Sign-out now properly blocks access again"
 
 # Push to GitHub
 echo "📤 Pushing to GitHub..."

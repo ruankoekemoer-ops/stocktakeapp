@@ -6,12 +6,47 @@
 let msalInstance = null;
 let currentUser = null;
 
+// Helper function for toast notifications (if not available)
+function showToast(message, type = 'info', duration = 5000) {
+    if (typeof window.showToast === 'function') {
+        window.showToast(message, type, duration);
+    } else {
+        console.log(`[${type.toUpperCase()}] ${message}`);
+        alert(message);
+    }
+}
+
+// Helper function for escaping HTML
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // Initialize MSAL
 async function initMSAL() {
     try {
+        // Wait for MSAL library to load (with timeout)
+        let retries = 0;
+        while (typeof msal === 'undefined' && retries < 20) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            retries++;
+        }
+        
         // Check if MSAL is available (loaded from CDN)
         if (typeof msal === 'undefined') {
             console.warn('MSAL library not loaded. Authentication will not work.');
+            showToast('Microsoft authentication library failed to load. Please refresh the page.', 'error', 5000);
+            blockAccessUntilLogin();
+            return null;
+        }
+        
+        // Check if client ID is configured
+        if (!CONFIG || !CONFIG.msal || !CONFIG.msal.clientId || CONFIG.msal.clientId === 'YOUR_CLIENT_ID_HERE') {
+            console.warn('MSAL client ID not configured');
+            showToast('Microsoft authentication not configured. Please set your Client ID in config.js', 'warning', 5000);
+            blockAccessUntilLogin();
             return null;
         }
         
@@ -37,12 +72,20 @@ async function initMSAL() {
         if (accounts.length > 0) {
             currentUser = accounts[0];
             updateUIForUser(currentUser);
+            // User is authenticated, allow access
+            allowAccess();
+            return msalInstance;
+        } else {
+            // No user logged in, block access
+            blockAccessUntilLogin();
         }
         
         return msalInstance;
     } catch (error) {
         console.error('Error initializing MSAL:', error);
-        // Fallback: if MSAL fails to load, continue without auth
+        showToast('Error initializing authentication: ' + error.message, 'error', 5000);
+        // Block access if auth fails
+        blockAccessUntilLogin();
         return null;
     }
 }
@@ -50,7 +93,10 @@ async function initMSAL() {
 // Sign in with Microsoft
 async function signIn() {
     try {
+        console.log('Sign in clicked');
+        
         if (!msalInstance) {
+            console.log('Initializing MSAL...');
             await initMSAL();
         }
         
@@ -64,19 +110,25 @@ async function signIn() {
             prompt: 'select_account', // Force account selection
         };
         
+        console.log('Calling loginPopup...');
         const response = await msalInstance.loginPopup(loginRequest);
+        console.log('Login response:', response);
+        
         currentUser = response.account;
         updateUIForUser(currentUser);
+        
+        // Allow access after successful login
+        allowAccess();
         
         showToast(`Welcome, ${currentUser.name || currentUser.username}!`, 'success', 3000);
         
         return response;
     } catch (error) {
         console.error('Sign in error:', error);
-        if (error.errorCode === 'user_cancelled') {
+        if (error.errorCode === 'user_cancelled' || error.errorMessage?.includes('User cancelled') || error.message?.includes('cancelled')) {
             showToast('Sign in cancelled', 'info', 3000);
         } else {
-            showToast('Sign in failed: ' + error.message, 'error', 5000);
+            showToast('Sign in failed: ' + (error.message || error.errorMessage || 'Unknown error'), 'error', 5000);
         }
         throw error;
     }
@@ -98,6 +150,9 @@ async function signOut() {
         
         currentUser = null;
         updateUIForUser(null);
+        
+        // Block access after logout
+        blockAccessUntilLogin();
         
         showToast('Signed out successfully', 'success', 3000);
     } catch (error) {
@@ -164,7 +219,7 @@ function updateUIForUser(user) {
         // User is signed in
         if (authButton) {
             authButton.textContent = 'Sign Out';
-            authButton.onclick = signOut;
+            authButton.setAttribute('onclick', 'signOut()');
             authButton.className = 'btn btn-secondary btn-small';
         }
         
@@ -191,20 +246,90 @@ function updateUIForUser(user) {
     }
 }
 
-// Initialize auth on page load
-document.addEventListener('DOMContentLoaded', async () => {
-    // Check if MSAL is configured
-    if (CONFIG.msal && CONFIG.msal.clientId && CONFIG.msal.clientId !== 'YOUR_CLIENT_ID_HERE') {
-        await initMSAL();
-    } else {
-        console.log('Microsoft authentication not configured. Set CLIENT_ID in config.js');
+// Block access until user logs in
+function blockAccessUntilLogin() {
+    const roleSelectionScreen = document.getElementById('roleSelectionScreen');
+    const mainApp = document.getElementById('mainApp');
+    
+    if (roleSelectionScreen) {
+        roleSelectionScreen.style.display = 'none';
     }
-});
+    if (mainApp) {
+        mainApp.style.display = 'none';
+    }
+    
+    // Show login required screen
+    let loginScreen = document.getElementById('loginRequiredScreen');
+    if (!loginScreen) {
+        loginScreen = document.createElement('div');
+        loginScreen.id = 'loginRequiredScreen';
+        loginScreen.className = 'role-selection-screen';
+        loginScreen.innerHTML = `
+            <div class="role-selection-card">
+                <h1>Stock Take Management System</h1>
+                <p class="subtitle">Please sign in with Microsoft to continue</p>
+                <button id="loginRequiredButton" class="btn btn-primary btn-large" style="margin-top: 2rem; padding: 1rem 2rem; font-size: 1.1rem;">
+                    Sign in with Microsoft
+                </button>
+                <p style="margin-top: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                    You must be authenticated to access this application
+                </p>
+            </div>
+        `;
+        document.body.appendChild(loginScreen);
+        
+        // Add click handler
+        const loginBtn = document.getElementById('loginRequiredButton');
+        if (loginBtn) {
+            loginBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Login required button clicked');
+                signIn();
+            });
+        }
+    }
+    loginScreen.style.display = 'flex';
+}
 
-// Export functions
+// Allow access after login
+function allowAccess() {
+    const loginScreen = document.getElementById('loginRequiredScreen');
+    if (loginScreen) {
+        loginScreen.style.display = 'none';
+    }
+    
+    // Show role selection screen
+    const roleSelectionScreen = document.getElementById('roleSelectionScreen');
+    if (roleSelectionScreen) {
+        roleSelectionScreen.style.display = 'flex';
+    }
+}
+
+// Make functions available globally immediately
 window.signIn = signIn;
 window.signOut = signOut;
 window.getAccessToken = getAccessToken;
 window.getCurrentUser = getCurrentUser;
 window.isAuthenticated = isAuthenticated;
+window.blockAccessUntilLogin = blockAccessUntilLogin;
+window.allowAccess = allowAccess;
 
+// Initialize auth on page load
+document.addEventListener('DOMContentLoaded', async () => {
+    // Always require authentication
+    // Check if MSAL is configured
+    if (CONFIG && CONFIG.msal && CONFIG.msal.clientId && CONFIG.msal.clientId !== 'YOUR_CLIENT_ID_HERE') {
+        await initMSAL();
+    } else {
+        console.log('Microsoft authentication not configured. Set CLIENT_ID in config.js');
+        // Still block access even if not configured
+        blockAccessUntilLogin();
+        const loginBtn = document.getElementById('loginRequiredButton');
+        if (loginBtn) {
+            loginBtn.onclick = () => {
+                showToast('Please configure Microsoft authentication first. See MICROSOFT-AUTH-SETUP.md', 'error', 6000);
+            };
+        }
+    }
+});

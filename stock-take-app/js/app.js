@@ -21,6 +21,15 @@ function selectRole(role) {
     try {
         console.log('Selecting role:', role);
         
+        // Check if user is authenticated
+        if (typeof isAuthenticated === 'function' && !isAuthenticated()) {
+            showToast('Please sign in with Microsoft first', 'warning', 3000);
+            if (typeof signIn === 'function') {
+                signIn();
+            }
+            return;
+        }
+        
         if (!role || (role !== 'counter' && role !== 'manager')) {
             console.error('Invalid role:', role);
             return;
@@ -123,13 +132,13 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('Manager button not found!');
     }
     
-    // Always show role selection screen first
-    // User must explicitly select their role each time
+    // Don't show role selection until user is authenticated
+    // Authentication check will handle showing the appropriate screen
     const roleScreen = document.getElementById('roleSelectionScreen');
     const mainApp = document.getElementById('mainApp');
     
     if (roleScreen) {
-        roleScreen.style.display = 'flex';
+        roleScreen.style.display = 'none';
     }
     if (mainApp) {
         mainApp.style.display = 'none';
@@ -137,6 +146,30 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Clear any saved role to force selection
     localStorage.removeItem('stockTakeRole');
+    
+    // Wait for auth to initialize, then check authentication
+    setTimeout(async () => {
+        if (typeof isAuthenticated === 'function') {
+            if (!isAuthenticated()) {
+                // Auth will show login screen
+                if (typeof blockAccessUntilLogin === 'function') {
+                    blockAccessUntilLogin();
+                }
+            } else {
+                // User is authenticated, show role selection
+                if (roleScreen) {
+                    roleScreen.style.display = 'flex';
+                }
+            }
+        } else {
+            // Auth not loaded yet, wait a bit more
+            setTimeout(() => {
+                if (typeof blockAccessUntilLogin === 'function') {
+                    blockAccessUntilLogin();
+                }
+            }, 500);
+        }
+    }, 200);
 });
 
 function initializeApp(role) {
