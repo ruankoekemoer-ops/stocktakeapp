@@ -1,0 +1,9 @@
+name = "stock-take-app"
+compatibility_date = "2024-01-01"
+
+[env.production]
+name = "stock-take-app"
+
+[env.production.vars]
+# Environment variables can be set in Cloudflare dashboard
+

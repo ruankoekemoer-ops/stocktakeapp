@@ -1,0 +1,13 @@
+{
+  "name": "stock-take-app-pages",
+  "version": "1.0.0",
+  "description": "Stock Take App - Cloudflare Pages",
+  "scripts": {
+    "build": "echo 'No build step needed - static files'",
+    "deploy": "wrangler pages deploy ../stock-take-app"
+  },
+  "devDependencies": {
+    "wrangler": "^4.50.0"
+  }
+}
+

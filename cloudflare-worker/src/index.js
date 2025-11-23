@@ -1,21 +1,14 @@
 /**
  * Cloudflare Worker for Stock Take App
- * Connects to Cloudflare D1 Database
+ * Serves both frontend (HTML/CSS/JS) and API endpoints
+ * Hosted at: https://stock-take-api.rkoekemoer.workers.dev
  */
+
+// Import static files
+import { indexHtml, configJs, appJs, styleCss } from './static-files.js';
 
 export default {
   async fetch(request, env) {
-    // Handle CORS
-    if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        },
-      });
-    }
-
     const url = new URL(request.url);
     const path = url.pathname;
 
@@ -24,9 +17,51 @@ export default {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
-      'Content-Type': 'application/json',
     };
 
+    // Handle OPTIONS preflight
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { headers: corsHeaders });
+    }
+
+    // Serve static frontend files
+    if (path === '/' || path === '/index.html') {
+      return new Response(indexHtml, {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'text/html; charset=utf-8',
+        },
+      });
+    }
+
+    if (path === '/js/config.js') {
+      return new Response(configJs, {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/javascript; charset=utf-8',
+        },
+      });
+    }
+
+    if (path === '/js/app.js') {
+      return new Response(appJs, {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/javascript; charset=utf-8',
+        },
+      });
+    }
+
+    if (path === '/css/style.css') {
+      return new Response(styleCss, {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'text/css; charset=utf-8',
+        },
+      });
+    }
+
+    // API Routes
     try {
       // Route: GET /api/items
       if (path === '/api/items' && request.method === 'GET') {
@@ -51,7 +86,10 @@ export default {
         const result = await env.DB.prepare(query).bind(...params).all();
         
         return new Response(JSON.stringify(result.results || []), {
-          headers: corsHeaders,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
         });
       }
 
@@ -65,12 +103,18 @@ export default {
         if (!result) {
           return new Response(JSON.stringify({ error: 'Item not found' }), {
             status: 404,
-            headers: corsHeaders,
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json',
+            },
           });
         }
         
         return new Response(JSON.stringify(result), {
-          headers: corsHeaders,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
         });
       }
 
@@ -99,7 +143,10 @@ export default {
           item: item,
         }), {
           status: 201,
-          headers: corsHeaders,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
         });
       }
 
@@ -116,7 +163,10 @@ export default {
         if (!existing) {
           return new Response(JSON.stringify({ error: 'Item not found' }), {
             status: 404,
-            headers: corsHeaders,
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json',
+            },
           });
         }
         
@@ -143,7 +193,10 @@ export default {
           message: 'Item updated successfully',
           item: item,
         }), {
-          headers: corsHeaders,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
         });
       }
 
@@ -158,23 +211,30 @@ export default {
         if (result.meta.changes === 0) {
           return new Response(JSON.stringify({ error: 'Item not found' }), {
             status: 404,
-            headers: corsHeaders,
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json',
+            },
           });
         }
         
         return new Response(JSON.stringify({
           message: 'Item deleted successfully',
         }), {
-          headers: corsHeaders,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
         });
       }
 
       // Health check / API info
-      if (path === '/' || path === '/api') {
+      if (path === '/api' || path === '/api/') {
         return new Response(JSON.stringify({
           name: 'Stock Take API',
           version: '1.0.0',
           database: 'Cloudflare D1',
+          frontend: 'https://stock-take-api.rkoekemoer.workers.dev',
           endpoints: {
             'GET /api/items': 'Get all items',
             'GET /api/items/:id': 'Get item by ID',
@@ -183,14 +243,20 @@ export default {
             'DELETE /api/items/:id': 'Delete item',
           },
         }), {
-          headers: corsHeaders,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
         });
       }
 
       // 404 for unknown routes
       return new Response(JSON.stringify({ error: 'Not found' }), {
         status: 404,
-        headers: corsHeaders,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+        },
       });
 
     } catch (error) {
@@ -199,9 +265,11 @@ export default {
         error: error.message || 'Internal server error',
       }), {
         status: 500,
-        headers: corsHeaders,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+        },
       });
     }
   },
 };
-
