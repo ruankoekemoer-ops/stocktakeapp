@@ -33,7 +33,7 @@ function selectRole(role) {
         
         if (!roleSelectionScreen || !mainApp) {
             console.error('Required DOM elements not found');
-            alert('Error: Page elements not found. Please refresh the page.');
+            showToast('Error: Page elements not found. Please refresh the page.', 'error', 5000);
             return;
         }
         
@@ -46,7 +46,7 @@ function selectRole(role) {
         }, 50);
     } catch (error) {
         console.error('Error in selectRole:', error);
-        alert('Error selecting role: ' + error.message + '. Please refresh the page and try again.');
+        showToast('Error selecting role: ' + error.message, 'error', 5000);
     }
 }
 
@@ -88,7 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } catch (error) {
                     console.error('Error in counter button click:', error);
-                    alert('Error: ' + error.message);
+                    showToast(error.message, 'error', 5000);
                 }
             }, { passive: false });
         });
@@ -114,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } catch (error) {
                     console.error('Error in manager button click:', error);
-                    alert('Error: ' + error.message);
+                    showToast(error.message, 'error', 5000);
                 }
             }, { passive: false });
         });
@@ -123,23 +123,20 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('Manager button not found!');
     }
     
-    // Check if role is already selected
-    const savedRole = localStorage.getItem('stockTakeRole');
+    // Always show role selection screen first
+    // User must explicitly select their role each time
+    const roleScreen = document.getElementById('roleSelectionScreen');
+    const mainApp = document.getElementById('mainApp');
     
-    if (!savedRole) {
-        // Show role selection screen
-        const roleScreen = document.getElementById('roleSelectionScreen');
-        const mainApp = document.getElementById('mainApp');
-        if (roleScreen) roleScreen.style.display = 'flex';
-        if (mainApp) mainApp.style.display = 'none';
-    } else {
-        // Hide role selection, show main app
-        const roleScreen = document.getElementById('roleSelectionScreen');
-        const mainApp = document.getElementById('mainApp');
-        if (roleScreen) roleScreen.style.display = 'none';
-        if (mainApp) mainApp.style.display = 'block';
-        initializeApp(savedRole);
+    if (roleScreen) {
+        roleScreen.style.display = 'flex';
     }
+    if (mainApp) {
+        mainApp.style.display = 'none';
+    }
+    
+    // Clear any saved role to force selection
+    localStorage.removeItem('stockTakeRole');
 });
 
 function initializeApp(role) {
@@ -178,17 +175,21 @@ function initializeApp(role) {
         }, 100);
     } catch (error) {
         console.error('Error in initializeApp:', error);
-        alert('Error initializing app. Please refresh the page and try again.');
+        showToast('Error initializing app. Please refresh the page.', 'error', 5000);
     }
 }
 
 // selectRole function is now defined at the top of the file for immediate availability
 
 function switchRole() {
-    if (confirm('Switch to a different role? This will reload the app.')) {
-        localStorage.removeItem('stockTakeRole');
-        location.reload();
-    }
+    // Clear role and show role selection screen
+    localStorage.removeItem('stockTakeRole');
+    
+    const roleScreen = document.getElementById('roleSelectionScreen');
+    const mainApp = document.getElementById('mainApp');
+    
+    if (roleScreen) roleScreen.style.display = 'flex';
+    if (mainApp) mainApp.style.display = 'none';
 }
 window.switchRole = switchRole;
 
@@ -208,26 +209,91 @@ function setRole(role, saveToStorage = true) {
             : 'Manage companies, warehouses, and view reports';
     }
     
-    // Show/hide tabs based on role
-    const setupTabBtn = document.getElementById('setupTabBtn');
-    const viewTabBtn = document.getElementById('viewTabBtn');
-    const stocktakeTabBtn = document.getElementById('stocktakeTabBtn');
-    const openStockTakesTabBtn = document.getElementById('openStockTakesTabBtn');
+    // Update role badge
+    const roleBadge = document.getElementById('roleBadge');
+    if (roleBadge) {
+        roleBadge.textContent = role.charAt(0).toUpperCase() + role.slice(1);
+        roleBadge.className = 'role-badge ' + role;
+    }
     
+    // Build navigation items (hides navigation for counter)
+    buildNavigation(role);
+    
+    // Counter mode: Show ONLY the counting interface, hide everything else
     if (role === 'counter') {
-        // Counter mode: Only show Stock Take and Open Stock Takes tabs (NO SETUP OR VIEW)
-        if (setupTabBtn) setupTabBtn.style.display = 'none';
-        if (viewTabBtn) viewTabBtn.style.display = 'none';
-        if (stocktakeTabBtn) stocktakeTabBtn.style.display = 'inline-block';
-        if (openStockTakesTabBtn) openStockTakesTabBtn.style.display = 'inline-block';
+        // Hide entire header
+        const appHeader = document.getElementById('appHeader');
+        if (appHeader) appHeader.style.display = 'none';
         
-        // Show counter start section, hide manager section
+        // Hide page header in content
+        const pageHeader = document.querySelector('.page-header');
+        if (pageHeader) pageHeader.style.display = 'none';
+        
+        // Hide ALL other tabs completely
+        const openStockTakesTab = document.getElementById('openStockTakesTab');
+        const setupTab = document.getElementById('setupTab');
+        const viewTab = document.getElementById('viewTab');
+        
+        if (openStockTakesTab) openStockTakesTab.style.display = 'none';
+        if (setupTab) setupTab.style.display = 'none';
+        if (viewTab) viewTab.style.display = 'none';
+        
+        // Hide all sections except counter start
         const counterStartSection = document.getElementById('counterStartSection');
         const managerStockTakeSection = document.getElementById('managerStockTakeSection');
+        const binLocationSection = document.getElementById('binLocationSection');
+        const itemScanSection = document.getElementById('itemScanSection');
+        const binItemsSection = document.getElementById('binItemsSection');
+        
         if (counterStartSection) counterStartSection.style.display = 'block';
         if (managerStockTakeSection) managerStockTakeSection.style.display = 'none';
+        if (binLocationSection) binLocationSection.style.display = 'none';
+        if (itemScanSection) itemScanSection.style.display = 'none';
+        if (binItemsSection) binItemsSection.style.display = 'none';
         
-        // Switch to stock take tab
+        // Show ONLY stocktake tab content
+        const stocktakeTab = document.getElementById('stocktakeTab');
+        if (stocktakeTab) {
+            stocktakeTab.classList.add('active');
+            stocktakeTab.style.display = 'block';
+        }
+        
+        // Add a small "Switch Role" button at the bottom for counter
+        addCounterSwitchButton();
+        
+        // Focus on counter bin input
+        setTimeout(() => {
+            const counterBinInput = document.getElementById('counterBinLocationInput');
+            if (counterBinInput) counterBinInput.focus();
+        }, 100);
+    } else {
+        // Manager mode: Show everything
+        const appHeader = document.getElementById('appHeader');
+        if (appHeader) appHeader.style.display = 'flex';
+        
+        const pageHeader = document.querySelector('.page-header');
+        if (pageHeader) pageHeader.style.display = 'block';
+        
+        // Show all tabs
+        const openStockTakesTab = document.getElementById('openStockTakesTab');
+        const setupTab = document.getElementById('setupTab');
+        const viewTab = document.getElementById('viewTab');
+        
+        if (openStockTakesTab) openStockTakesTab.style.display = 'block';
+        if (setupTab) setupTab.style.display = 'block';
+        if (viewTab) viewTab.style.display = 'block';
+        
+        // Show manager section, hide counter section
+        const counterStartSection = document.getElementById('counterStartSection');
+        const managerStockTakeSection = document.getElementById('managerStockTakeSection');
+        if (counterStartSection) counterStartSection.style.display = 'none';
+        if (managerStockTakeSection) managerStockTakeSection.style.display = 'block';
+        
+        // Remove counter switch button if it exists
+        const counterSwitchBtn = document.getElementById('counterSwitchRoleBtn');
+        if (counterSwitchBtn) counterSwitchBtn.remove();
+        
+        // Switch to stock take tab by default
         const stocktakeTab = document.getElementById('stocktakeTab');
         if (stocktakeTab && !stocktakeTab.classList.contains('active')) {
             try {
@@ -236,27 +302,6 @@ function setRole(role, saveToStorage = true) {
                 console.error('Error switching to stocktake tab:', error);
             }
         }
-        
-        // Load open stock takes
-        loadOpenStockTakes();
-        
-        // Focus on counter bin input
-        setTimeout(() => {
-            const counterBinInput = document.getElementById('counterBinLocationInput');
-            if (counterBinInput) counterBinInput.focus();
-        }, 100);
-    } else {
-        // Manager mode: Show all tabs
-        if (setupTabBtn) setupTabBtn.style.display = 'inline-block';
-        if (viewTabBtn) viewTabBtn.style.display = 'inline-block';
-        if (stocktakeTabBtn) stocktakeTabBtn.style.display = 'inline-block';
-        if (openStockTakesTabBtn) openStockTakesTabBtn.style.display = 'inline-block';
-        
-        // Show manager section, hide counter section
-        const counterStartSection = document.getElementById('counterStartSection');
-        const managerStockTakeSection = document.getElementById('managerStockTakeSection');
-        if (counterStartSection) counterStartSection.style.display = 'none';
-        if (managerStockTakeSection) managerStockTakeSection.style.display = 'block';
     }
 }
 window.setRole = setRole;
@@ -264,27 +309,114 @@ window.setRole = setRole;
 /**
  * Tab switching
  */
+// Build navigation menu
+function buildNavigation(role) {
+    const navItems = [];
+    
+    // Counter sees NOTHING - no navigation at all
+    if (role === 'counter') {
+        // Hide sidebar and mobile nav completely
+        const sidebar = document.getElementById('sidebar');
+        const mobileNav = document.getElementById('mobileNav');
+        if (sidebar) sidebar.style.display = 'none';
+        if (mobileNav) mobileNav.style.display = 'none';
+        
+        // Update main content to take full width
+        const mainContent = document.querySelector('.main-content');
+        if (mainContent) mainContent.style.marginLeft = '0';
+        
+        return; // Exit early - no navigation for counter
+    } else {
+        // Manager sees all navigation
+        navItems.push(
+            { id: 'stocktake', label: 'Stock Take', icon: '📦' },
+            { id: 'openStockTakes', label: 'Open Stock Takes', icon: '📋' },
+            { id: 'setup', label: 'Setup', icon: '⚙️' },
+            { id: 'view', label: 'View Items', icon: '📊' }
+        );
+        
+        // Show sidebar and mobile nav for manager
+        const sidebar = document.getElementById('sidebar');
+        const mobileNav = document.getElementById('mobileNav');
+        if (sidebar) sidebar.style.display = 'block';
+        if (mobileNav) mobileNav.style.display = 'block';
+        
+        // Restore main content margin
+        const mainContent = document.querySelector('.main-content');
+        if (mainContent) mainContent.style.marginLeft = 'var(--sidebar-width)';
+    }
+    
+    // Update sidebar navigation
+    const sidebarNav = document.getElementById('sidebarNav');
+    if (sidebarNav) {
+        sidebarNav.innerHTML = navItems.map(item => `
+            <div class="nav-item" onclick="showTab('${item.id}')" data-tab="${item.id}">
+                <span class="nav-icon">${item.icon}</span>
+                <span class="nav-label">${item.label}</span>
+            </div>
+        `).join('');
+    }
+    
+    // Update mobile navigation
+    const mobileNav = document.getElementById('mobileNav');
+    if (mobileNav) {
+        const mobileNavItems = mobileNav.querySelector('.mobile-nav-items');
+        if (mobileNavItems) {
+            mobileNavItems.innerHTML = navItems.map(item => `
+                <div class="mobile-nav-item" onclick="showTab('${item.id}')" data-tab="${item.id}">
+                    <span class="mobile-nav-icon">${item.icon}</span>
+                    <span>${item.label}</span>
+                </div>
+            `).join('');
+        }
+    }
+}
+
 function showTab(tabName, clickedElement) {
     // Check if tab is allowed for current role
     if (tabName === 'setup' && currentRole === 'counter') {
-        alert('Setup is only available in Manager mode');
+        showToast('Setup is only available in Manager mode', 'warning', 3000);
         return;
     }
     if (tabName === 'view' && currentRole === 'counter') {
-        alert('View Items is only available in Manager mode');
+        showToast('View Items is only available in Manager mode', 'warning', 3000);
         return;
     }
     
+    // Hide all tabs
     document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     
+    // Show selected tab
     const tabElement = document.getElementById(tabName + 'Tab');
     if (tabElement) {
         tabElement.classList.add('active');
     }
     
-    if (clickedElement) {
-        clickedElement.classList.add('active');
+    // Update navigation active state
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('active');
+        if (item.dataset.tab === tabName) {
+            item.classList.add('active');
+        }
+    });
+    
+    document.querySelectorAll('.mobile-nav-item').forEach(item => {
+        item.classList.remove('active');
+        if (item.dataset.tab === tabName) {
+            item.classList.add('active');
+        }
+    });
+    
+    // Update page title
+    const pageTitle = document.getElementById('pageTitle');
+    if (pageTitle) {
+        const titles = {
+            'stocktake': 'Stock Take',
+            'openStockTakes': 'Open Stock Takes',
+            'setup': 'Setup',
+            'view': 'View Items'
+        };
+        pageTitle.textContent = titles[tabName] || 'Stock Take';
     } else {
         // Find the tab button by ID
         const tabBtnId = tabName + 'TabBtn';
@@ -469,7 +601,7 @@ async function handleAddCompany(event) {
         if (!response.ok) throw new Error('Failed to save company');
         
         const result = await response.json();
-        alert('✅ Company created successfully!');
+        showToast('Company created successfully!', 'success', 3000);
         closeAddCompanyModal();
         await loadCompanies();
         // Auto-select the newly created company
@@ -477,7 +609,7 @@ async function handleAddCompany(event) {
             selectCompany(result.item.id);
         }
     } catch (error) {
-        alert(`❌ Error: ${error.message}`);
+        showToast(error.message, 'error', 6000);
     }
 }
 window.handleAddCompany = handleAddCompany;
@@ -499,7 +631,7 @@ async function handleEditCompany(event) {
         
         if (!response.ok) throw new Error('Failed to update company');
         
-        alert('✅ Company updated successfully!');
+        showToast('Company updated successfully!', 'success', 3000);
         closeEditCompanyModal();
         await loadCompanies();
         // Keep the same company selected if it still exists
@@ -508,7 +640,7 @@ async function handleEditCompany(event) {
             onCompanySelected();
         }
     } catch (error) {
-        alert(`❌ Error: ${error.message}`);
+        showToast(error.message, 'error', 6000);
     }
 }
 window.handleEditCompany = handleEditCompany;
@@ -524,13 +656,13 @@ async function deleteCompany(id) {
     try {
         const response = await fetch(`${CONFIG.apiUrl}/companies/${id}`, { method: 'DELETE' });
         if (!response.ok) throw new Error('Failed to delete company');
-        alert('✅ Company deleted successfully!');
+        showToast('Company deleted successfully!', 'success', 3000);
         selectedCompanyId = null;
         document.getElementById('selectedCompany').value = '';
         await loadCompanies();
         onCompanySelected(); // This will show the all companies list
     } catch (error) {
-        alert(`❌ Error: ${error.message}`);
+        showToast(error.message, 'error', 6000);
     }
 }
 window.deleteCompany = deleteCompany;
@@ -703,14 +835,14 @@ async function handleAddWarehouse(event) {
         
         if (!response.ok) throw new Error('Failed to save warehouse');
         
-        alert('✅ Warehouse created successfully!');
+        showToast('Warehouse created successfully!', 'success', 3000);
         closeAddWarehouseModal();
         await loadWarehouses();
         loadWarehousesForCompany();
         loadBinLocationsForCompany();
         loadManagersForCompany();
     } catch (error) {
-        alert(`❌ Error: ${error.message}`);
+        showToast(error.message, 'error', 6000);
     }
 }
 window.handleAddWarehouse = handleAddWarehouse;
@@ -734,14 +866,14 @@ async function handleEditWarehouse(event) {
         
         if (!response.ok) throw new Error('Failed to update warehouse');
         
-        alert('✅ Warehouse updated successfully!');
+        showToast('Warehouse updated successfully!', 'success', 3000);
         closeEditWarehouseModal();
         await loadWarehouses();
         loadWarehousesForCompany();
         loadBinLocationsForCompany();
         loadManagersForCompany();
     } catch (error) {
-        alert(`❌ Error: ${error.message}`);
+        showToast(error.message, 'error', 6000);
     }
 }
 window.handleEditWarehouse = handleEditWarehouse;
@@ -757,13 +889,13 @@ async function deleteWarehouse(id) {
     try {
         const response = await fetch(`${CONFIG.apiUrl}/warehouses/${id}`, { method: 'DELETE' });
         if (!response.ok) throw new Error('Failed to delete warehouse');
-        alert('✅ Warehouse deleted successfully!');
+        showToast('Warehouse deleted successfully!', 'success', 3000);
         await loadWarehouses();
         loadWarehousesForCompany();
         loadBinLocationsForCompany();
         loadManagersForCompany();
     } catch (error) {
-        alert(`❌ Error: ${error.message}`);
+        showToast(error.message, 'error', 6000);
     }
 }
 window.deleteWarehouse = deleteWarehouse;
@@ -948,12 +1080,12 @@ async function handleAddBinLocation(event) {
         
         if (!response.ok) throw new Error('Failed to save bin location');
         
-        alert('✅ Bin location created successfully!');
+        showToast('Bin location created successfully!', 'success', 3000);
         closeAddBinLocationModal();
         await loadBinLocations();
         loadBinLocationsForCompany();
     } catch (error) {
-        alert(`❌ Error: ${error.message}`);
+        showToast(error.message, 'error', 6000);
     }
 }
 window.handleAddBinLocation = handleAddBinLocation;
@@ -979,12 +1111,12 @@ async function handleEditBinLocation(event) {
         
         if (!response.ok) throw new Error('Failed to update bin location');
         
-        alert('✅ Bin location updated successfully!');
+        showToast('Bin location updated successfully!', 'success', 3000);
         closeEditBinLocationModal();
         await loadBinLocations();
         loadBinLocationsForCompany();
     } catch (error) {
-        alert(`❌ Error: ${error.message}`);
+        showToast(error.message, 'error', 6000);
     }
 }
 window.handleEditBinLocation = handleEditBinLocation;
@@ -1000,11 +1132,11 @@ async function deleteBinLocation(id) {
     try {
         const response = await fetch(`${CONFIG.apiUrl}/bin-locations/${id}`, { method: 'DELETE' });
         if (!response.ok) throw new Error('Failed to delete bin location');
-        alert('✅ Bin location deleted successfully!');
+        showToast('Bin location deleted successfully!', 'success', 3000);
         await loadBinLocations();
         loadBinLocationsForCompany();
     } catch (error) {
-        alert(`❌ Error: ${error.message}`);
+        showToast(error.message, 'error', 6000);
     }
 }
 window.deleteBinLocation = deleteBinLocation;
@@ -1180,12 +1312,12 @@ async function handleAddManager(event) {
         
         if (!response.ok) throw new Error('Failed to save manager');
         
-        alert('✅ Manager created successfully!');
+        showToast('Manager created successfully!', 'success', 3000);
         closeAddManagerModal();
         await loadManagers();
         loadManagersForCompany();
     } catch (error) {
-        alert(`❌ Error: ${error.message}`);
+        showToast(error.message, 'error', 6000);
     }
 }
 window.handleAddManager = handleAddManager;
@@ -1209,12 +1341,12 @@ async function handleEditManager(event) {
         
         if (!response.ok) throw new Error('Failed to update manager');
         
-        alert('✅ Manager updated successfully!');
+        showToast('Manager updated successfully!', 'success', 3000);
         closeEditManagerModal();
         await loadManagers();
         loadManagersForCompany();
     } catch (error) {
-        alert(`❌ Error: ${error.message}`);
+        showToast(error.message, 'error', 6000);
     }
 }
 window.handleEditManager = handleEditManager;
@@ -1230,11 +1362,11 @@ async function deleteManager(id) {
     try {
         const response = await fetch(`${CONFIG.apiUrl}/managers/${id}`, { method: 'DELETE' });
         if (!response.ok) throw new Error('Failed to deactivate manager');
-        alert('✅ Manager deactivated successfully!');
+        showToast('Manager deactivated successfully!', 'success', 3000);
         await loadManagers();
         loadManagersForCompany();
     } catch (error) {
-        alert(`❌ Error: ${error.message}`);
+        showToast(error.message, 'error', 6000);
     }
 }
 window.deleteManager = deleteManager;
@@ -1488,14 +1620,17 @@ async function handleUpdateItem(event) {
         
         if (!response.ok) throw new Error('Failed to update item');
         
-        alert('✅ Item updated successfully!');
+        showToast('Item updated successfully!', 'success', 3000);
         closeEditItemModal();
         loadItems();
     } catch (error) {
-        alert(`❌ Error: ${error.message}`);
+        showToast(error.message, 'error', 6000);
     }
 }
-document.getElementById('editItemForm').onsubmit = handleUpdateItem;
+const editItemForm = document.getElementById('editItemForm');
+if (editItemForm) {
+    editItemForm.onsubmit = handleUpdateItem;
+}
 
 async function deleteItem(itemId) {
     if (!confirm('Are you sure you want to delete this item?')) return;
@@ -1503,10 +1638,10 @@ async function deleteItem(itemId) {
     try {
         const response = await fetch(`${CONFIG.apiUrl}/items/${itemId}`, { method: 'DELETE' });
         if (!response.ok) throw new Error('Failed to delete item');
-        alert('✅ Item deleted successfully!');
+        showToast('Item deleted successfully!', 'success', 3000);
         loadItems();
     } catch (error) {
-        alert(`❌ Error: ${error.message}`);
+        showToast(error.message, 'error', 6000);
     }
 }
 window.deleteItem = deleteItem;
@@ -1574,7 +1709,7 @@ async function openStockTake() {
     const warehouseId = document.getElementById('openStockTakeWarehouse').value;
     
     if (!companyId || !warehouseId) {
-        alert('Please select Company and Warehouse');
+        showToast('Please select Company and Warehouse', 'warning', 3000);
         return;
     }
     
@@ -1582,7 +1717,7 @@ async function openStockTake() {
     const warehouseManagers = managers.filter(m => m.warehouse_id == warehouseId && m.is_active !== 0);
     
     if (warehouseManagers.length === 0) {
-        alert('❌ Cannot open stock take: No active managers found for this warehouse.\n\nPlease add a manager in Setup before opening a stock take.');
+        showToast('Cannot open stock take: No active managers found for this warehouse. Please add a manager in Setup first.', 'error', 6000);
         return;
     }
     
@@ -1618,7 +1753,7 @@ async function openStockTake() {
             loadOpenStockTakes();
         }
     } catch (error) {
-        alert(`❌ Error: ${error.message}`);
+        showToast(error.message, 'error', 6000);
     }
 }
 window.openStockTake = openStockTake;
@@ -1644,7 +1779,7 @@ async function closeStockTake() {
         clearBinLocation();
         alert('✅ Stock take closed successfully!');
     } catch (error) {
-        alert(`❌ Error: ${error.message}`);
+        showToast(error.message, 'error', 6000);
     }
 }
 window.closeStockTake = closeStockTake;
@@ -1717,7 +1852,7 @@ async function handleCounterBinLocationScan() {
     const binCode = document.getElementById('counterBinLocationInput').value.trim();
     
     if (!binCode) {
-        alert('Please enter or scan a bin location code');
+        showToast('Please enter or scan a bin location code', 'warning', 3000);
         return;
     }
     
@@ -1740,25 +1875,36 @@ async function handleCounterBinLocationScan() {
         // Stock takes are opened at Company + Warehouse level, not bin location level
         let stockTake = null;
         try {
-            // Ensure we're using the correct IDs from the bin location
-            const companyId = binLocation.company_id;
-            const warehouseId = binLocation.warehouse_id;
-            
-            console.log('Checking for open stock take with company_id:', companyId, 'warehouse_id:', warehouseId);
+        // Ensure we're using the correct IDs from the bin location
+        // Convert to integers to ensure proper comparison
+        const companyId = parseInt(binLocation.company_id);
+        const warehouseId = parseInt(binLocation.warehouse_id);
+        
+        console.log('Bin location data:', binLocation);
+        console.log('Checking for open stock take with company_id:', companyId, '(type:', typeof companyId, ')', 'warehouse_id:', warehouseId, '(type:', typeof warehouseId, ')');
             
             const stockTakeResponse = await fetch(`${CONFIG.apiUrl}/stock-takes/active?company_id=${companyId}&warehouse_id=${warehouseId}`);
             
             console.log('Stock take response status:', stockTakeResponse.status);
             
             if (stockTakeResponse.ok) {
-                stockTake = await stockTakeResponse.json();
-                console.log('Stock take response:', stockTake);
+                const responseData = await stockTakeResponse.json();
+                console.log('Stock take response:', responseData);
                 
-                // If the response is null or empty, no stock take exists
-                if (!stockTake || stockTake === null || (typeof stockTake === 'object' && Object.keys(stockTake).length === 0)) {
+                // Check if response has debug info (when no stock take found)
+                if (responseData.debug) {
+                    console.log('Debug info from server:', responseData.debug);
+                    stockTake = null;
+                    console.log('No matching stock take found. All open stock takes:', responseData.debug.all_open_stock_takes);
+                } else if (responseData.result === null) {
+                    stockTake = null;
+                    console.log('No stock take found (explicit null result)');
+                } else if (!responseData || responseData === null || (typeof responseData === 'object' && Object.keys(responseData).length === 0)) {
                     stockTake = null;
                     console.log('No stock take found (null or empty response)');
                 } else {
+                    // Use result if available, otherwise use responseData directly
+                    stockTake = responseData.result || responseData;
                     console.log('Found stock take:', stockTake);
                     console.log('Stock take company_id:', stockTake.company_id, 'type:', typeof stockTake.company_id);
                     console.log('Stock take warehouse_id:', stockTake.warehouse_id, 'type:', typeof stockTake.warehouse_id);
@@ -1791,7 +1937,25 @@ async function handleCounterBinLocationScan() {
         
         // Counter can ONLY count against existing open stock takes
         if (!stockTake) {
-            throw new Error(`No open stock take found for this bin location.\n\nBin: ${binLocation.bin_code}\nWarehouse: ${binLocation.warehouse_name}\nCompany: ${binLocation.company_name}\n\nPlease ask a manager to open a stock take for this Company and Warehouse combination first.`);
+            // Get debug info if available
+            let debugInfo = '';
+            try {
+                const debugResponse = await fetch(`${CONFIG.apiUrl}/stock-takes/active?company_id=${companyId}&warehouse_id=${warehouseId}`);
+                if (debugResponse.ok) {
+                    const debugData = await debugResponse.json();
+                    if (debugData.debug && debugData.debug.all_open_stock_takes) {
+                        debugInfo = `\n\nDebug: Found ${debugData.debug.all_open_stock_takes.length} open stock take(s) in database:\n`;
+                        debugData.debug.all_open_stock_takes.forEach((st, idx) => {
+                            debugInfo += `${idx + 1}. ID: ${st.id}, Company ID: ${st.company_id}, Warehouse ID: ${st.warehouse_id}, Company: ${st.company_name || 'N/A'}, Warehouse: ${st.warehouse_name || 'N/A'}\n`;
+                        });
+                        debugInfo += `\nRequested: Company ID: ${companyId}, Warehouse ID: ${warehouseId}`;
+                    }
+                }
+            } catch (e) {
+                console.error('Error getting debug info:', e);
+            }
+            
+            throw new Error(`No open stock take found for this bin location.\n\nBin: ${binLocation.bin_code}\nWarehouse: ${binLocation.warehouse_name} (ID: ${warehouseId})\nCompany: ${binLocation.company_name} (ID: ${companyId})\n\nPlease ask a manager to open a stock take for this Company and Warehouse combination first.${debugInfo}`);
         }
         
         // Verify bin location belongs to the stock take's warehouse/company
@@ -1845,8 +2009,11 @@ async function handleCounterBinLocationScan() {
         
         // Clear counter bin location input
         document.getElementById('counterBinLocationInput').value = '';
+        
+        // Show success toast
+        showToast(`Started counting bin location: ${binLocation.bin_code}`, 'success', 3000);
     } catch (error) {
-        alert(`❌ Error: ${error.message}`);
+        showToast(error.message, 'error', 6000);
         // Keep focus on input for retry
         setTimeout(() => {
             const counterBinInput = document.getElementById('counterBinLocationInput');
@@ -1861,12 +2028,12 @@ async function handleBinLocationScan() {
     const binCode = document.getElementById('binLocationInput').value.trim();
     
     if (!binCode) {
-        alert('Please enter or scan a bin location code');
+        showToast('Please enter or scan a bin location code', 'warning', 3000);
         return;
     }
     
     if (!currentStockTake) {
-        alert('Please open a stock take first');
+        showToast('Please open a stock take first', 'warning', 3000);
         return;
     }
     
@@ -1909,7 +2076,7 @@ async function handleBinLocationScan() {
         // Clear bin location input
         document.getElementById('binLocationInput').value = '';
     } catch (error) {
-        alert(`❌ Error: ${error.message}`);
+        showToast(error.message, 'error', 6000);
     }
 }
 window.handleBinLocationScan = handleBinLocationScan;
@@ -1935,7 +2102,7 @@ async function handleItemCodeScan() {
     const itemCode = document.getElementById('itemCodeInput').value.trim();
     
     if (!itemCode) {
-        alert('Please enter or scan an item code');
+        showToast('Please enter or scan an item code', 'warning', 3000);
         return;
     }
     
@@ -1955,7 +2122,7 @@ document.getElementById('itemCodeInput')?.addEventListener('keypress', function(
 
 async function addItemToBin() {
     if (!currentStockTake || !currentBinLocation) {
-        alert('Please scan a bin location first');
+        showToast('Please scan a bin location first', 'warning', 3000);
         return;
     }
     
@@ -1964,12 +2131,12 @@ async function addItemToBin() {
     const quantity = parseInt(document.getElementById('itemQuantityInput').value) || 0;
     
     if (!itemCode) {
-        alert('Please enter or scan an item code');
+        showToast('Please enter or scan an item code', 'warning', 3000);
         return;
     }
     
     if (quantity < 0) {
-        alert('Quantity must be 0 or greater');
+        showToast('Quantity must be 0 or greater', 'warning', 3000);
         return;
     }
     
@@ -2003,7 +2170,7 @@ async function addItemToBin() {
         // Reload bin items
         loadBinItems();
     } catch (error) {
-        alert(`❌ Error: ${error.message}`);
+        showToast(error.message, 'error', 6000);
     }
 }
 window.addItemToBin = addItemToBin;
@@ -2057,7 +2224,7 @@ async function removeBinItem(itemId) {
         
         loadBinItems();
     } catch (error) {
-        alert(`❌ Error: ${error.message}`);
+        showToast(error.message, 'error', 6000);
     }
 }
 window.removeBinItem = removeBinItem;
@@ -2071,19 +2238,19 @@ function clearBinItems() {
     )).then(() => {
         loadBinItems();
     }).catch(error => {
-        alert(`❌ Error clearing items: ${error.message}`);
+        showToast('Error clearing items: ' + error.message, 'error', 5000);
     });
 }
 window.clearBinItems = clearBinItems;
 
 async function submitBinLocation() {
     if (!currentStockTake || !currentBinLocation) {
-        alert('Please scan a bin location first');
+        showToast('Please scan a bin location first', 'warning', 3000);
         return;
     }
     
     if (currentBinItems.length === 0) {
-        alert('Please add at least one item before submitting');
+        showToast('Please add at least one item before submitting', 'warning', 3000);
         return;
     }
     
@@ -2105,7 +2272,7 @@ async function submitBinLocation() {
         }
         
         const data = await response.json();
-        alert(`✅ Successfully submitted ${data.items_submitted} item(s) for bin location ${currentBinLocation.bin_code}!`);
+        showToast(`Successfully submitted ${data.items_submitted} item(s) for bin location ${currentBinLocation.bin_code}!`, 'success', 4000);
         
         // Clear bin location and items
         clearBinLocation();
@@ -2115,7 +2282,7 @@ async function submitBinLocation() {
             loadItems();
         }
     } catch (error) {
-        alert(`❌ Error: ${error.message}`);
+        showToast(error.message, 'error', 6000);
     }
 }
 window.submitBinLocation = submitBinLocation;
@@ -2201,7 +2368,7 @@ async function loadOpenStockTakes() {
         }
     } catch (error) {
         console.error('Error loading open stock takes:', error);
-        alert(`Error loading open stock takes: ${error.message}`);
+        showToast('Error loading open stock takes: ' + error.message, 'error', 5000);
     }
 }
 window.loadOpenStockTakes = loadOpenStockTakes;
@@ -2223,9 +2390,9 @@ async function openExistingStockTake(stockTakeId) {
         updateStockTakeStatus();
         showTab('stocktake');
         
-        alert('✅ Stock take loaded successfully!');
+        showToast('Stock take loaded successfully!', 'success', 3000);
     } catch (error) {
-        alert(`❌ Error: ${error.message}`);
+        showToast(error.message, 'error', 6000);
     }
 }
 window.openExistingStockTake = openExistingStockTake;
@@ -2255,7 +2422,7 @@ async function closeStockTakeById(stockTakeId) {
         alert('✅ Stock take closed successfully!');
         loadOpenStockTakes();
     } catch (error) {
-        alert(`❌ Error: ${error.message}`);
+        showToast(error.message, 'error', 6000);
     }
 }
 window.closeStockTakeById = closeStockTakeById;
@@ -2278,6 +2445,56 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// ========== TOAST NOTIFICATIONS ==========
+function showToast(message, type = 'info', duration = 5000) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    const icons = {
+        success: '✅',
+        error: '❌',
+        warning: '⚠️',
+        info: 'ℹ️'
+    };
+    
+    const titles = {
+        success: 'Success',
+        error: 'Error',
+        warning: 'Warning',
+        info: 'Info'
+    };
+    
+    toast.innerHTML = `
+        <div class="toast-icon">${icons[type] || icons.info}</div>
+        <div class="toast-content">
+            <div class="toast-title">${titles[type] || 'Info'}</div>
+            <div class="toast-message">${escapeHtml(message)}</div>
+        </div>
+        <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+    `;
+    
+    container.appendChild(toast);
+    
+    // Auto-remove after duration
+    if (duration > 0) {
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.style.animation = 'slideIn 0.3s ease reverse';
+                setTimeout(() => toast.remove(), 300);
+            }
+        }, duration);
+    }
+}
+window.showToast = showToast;
+
+// Replace alert with toast (optional - can keep some alerts for critical confirmations)
+function showAlert(message, type = 'info') {
+    showToast(message, type, 4000);
+}
+
 // ========== QR CODE SCANNING ==========
 async function startQRScan(inputId) {
     // Stop any existing scanner
@@ -2292,7 +2509,7 @@ async function startQRScan(inputId) {
 
     // Check if Html5Qrcode is available
     if (typeof Html5Qrcode === 'undefined') {
-        alert('QR Code scanner library not loaded. Please refresh the page.');
+        showToast('QR Code scanner library not loaded. Please refresh the page.', 'error', 5000);
         return;
     }
 
@@ -2343,7 +2560,7 @@ async function startQRScan(inputId) {
         );
     } catch (err) {
         console.error('Error starting QR scanner:', err);
-        alert('Failed to start camera. Please check permissions and try again.');
+        showToast('Failed to start camera. Please check permissions and try again.', 'error', 5000);
         stopQRScan();
     }
 }
@@ -2366,3 +2583,20 @@ async function stopQRScan() {
     }
 }
 window.stopQRScan = stopQRScan;
+
+// Add switch role button for counter mode
+function addCounterSwitchButton() {
+    // Remove existing button if any
+    const existingBtn = document.getElementById('counterSwitchRoleBtn');
+    if (existingBtn) existingBtn.remove();
+    
+    // Create switch role button
+    const switchBtn = document.createElement('button');
+    switchBtn.id = 'counterSwitchRoleBtn';
+    switchBtn.className = 'btn btn-secondary btn-small';
+    switchBtn.style.cssText = 'position: fixed; bottom: 20px; right: 20px; z-index: 999;';
+    switchBtn.textContent = 'Switch Role';
+    switchBtn.onclick = switchRole;
+    
+    document.body.appendChild(switchBtn);
+}

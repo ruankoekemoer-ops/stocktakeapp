@@ -5,14 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stock Take Management System</title>
     <link rel="stylesheet" href="css/style.css">
-    <!-- QR Code Scanner Library -->
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 </head>
 <body>
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="toast-container"></div>
+    
     <!-- Role Selection Screen (shown first) -->
     <div id="roleSelectionScreen" class="role-selection-screen">
         <div class="role-selection-card">
-            <h1>📦 Stock Take Management System</h1>
+            <h1>Stock Take Management System</h1>
             <p class="subtitle">Select your role to continue</p>
             <div class="role-options">
                 <button type="button" class="role-option-btn counter-btn" id="counterBtn">
@@ -30,556 +32,449 @@
     </div>
 
     <!-- Main App (hidden until role selected) -->
-    <div id="mainApp" class="container" style="display: none;">
-        <header>
-            <h1>📦 Stock Take Management System</h1>
-            <p class="subtitle" id="roleSubtitle">Scan, count, and submit inventory</p>
-            <button onclick="switchRole()" class="btn btn-secondary btn-small" style="margin-top: 10px;">Switch Role</button>
-        </header>
+    <div id="mainApp" class="app-container" style="display: none;">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">StockTake</div>
+            </div>
+            <nav class="sidebar-nav" id="sidebarNav">
+                <!-- Navigation items will be populated by JavaScript -->
+            </nav>
+        </aside>
 
-        <nav class="tabs" id="mainTabs">
-            <button class="tab-btn active" onclick="showTab('stocktake', this)" id="stocktakeTabBtn">Stock Take</button>
-            <button class="tab-btn" onclick="showTab('openStockTakes', this)" id="openStockTakesTabBtn">Open Stock Takes</button>
-            <button class="tab-btn" onclick="showTab('setup', this)" id="setupTabBtn" style="display: none;">Setup</button>
-            <button class="tab-btn" onclick="showTab('view', this)" id="viewTabBtn" style="display: none;">View Items</button>
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <!-- App Header -->
+            <header class="app-header" id="appHeader">
+                <div class="header-title" id="pageTitle">Stock Take</div>
+                <div class="header-actions" id="headerActions">
+                    <span class="role-badge" id="roleBadge">Manager</span>
+                    <button onclick="switchRole()" class="btn-switch-role">Switch Role</button>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <div class="page-content">
+                    <!-- Stock Take Tab -->
+                    <div id="stocktakeTab" class="tab-content active">
+                        <div class="page-header">
+                            <h1 class="page-title">Stock Take</h1>
+                            <p class="page-subtitle" id="roleSubtitle">Scan, count, and submit inventory</p>
+                        </div>
+
+                        <!-- Counter Mode: Simple Start Counting -->
+                        <section class="card" id="counterStartSection" style="display: none;">
+                            <div class="card-header">
+                                <h2 class="card-title">Start Counting</h2>
+                            </div>
+                            <div class="start-counting-container">
+                                <p class="start-hint">Scan a bin location to begin counting</p>
+                                <div class="scan-input-large">
+                                    <label for="counterBinLocationInput" class="scan-label">Bin Location Code</label>
+                                    <p class="scan-hint">Scan QR code or enter bin code</p>
+                                    <div class="input-with-button-large">
+                                        <input 
+                                            type="text" 
+                                            id="counterBinLocationInput" 
+                                            class="form-control scan-input" 
+                                            placeholder="Scan or enter bin code to start..."
+                                            onkeypress="if(event.key==='Enter') handleCounterBinLocationScan()"
+                                            autocomplete="off"
+                                            autofocus
+                                        >
+                                        <button onclick="startQRScan('counterBinLocationInput', handleCounterBinLocationScan)" class="btn btn-secondary btn-large" title="Scan QR Code">📷</button>
+                                        <button onclick="handleCounterBinLocationScan()" class="btn btn-primary btn-large">Start</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- Manager Mode: Open/Close Stock Take -->
+                        <section class="card" id="managerStockTakeSection" style="display: none;">
+                            <div class="card-header">
+                                <h2 class="card-title">Manage Stock Take</h2>
+                            </div>
+                            <div id="stockTakeStatus" class="status-box">
+                                <p>No stock take open</p>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="openStockTakeCompany">Company</label>
+                                    <select id="openStockTakeCompany" class="form-control" required onchange="updateWarehousesForOpenStockTake()">
+                                        <option value="">Select Company</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="openStockTakeWarehouse">Warehouse</label>
+                                    <select id="openStockTakeWarehouse" class="form-control" required onchange="validateManagerForWarehouse()">
+                                        <option value="">Select Warehouse</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div id="managerValidationMessage" class="validation-message" style="display: none;"></div>
+                            <div class="button-group">
+                                <button onclick="openStockTake()" class="btn btn-primary" id="openStockTakeBtn">Open Stock Take</button>
+                                <button onclick="closeStockTake()" class="btn btn-danger" id="closeStockTakeBtn" style="display: none;">Close Stock Take</button>
+                            </div>
+                        </section>
+
+                        <!-- Scan Bin Location -->
+                        <section class="card scanning-section" id="binLocationSection" style="display: none;">
+                            <div class="card-header">
+                                <h2 class="card-title">Scan Bin Location</h2>
+                            </div>
+                            <div id="currentBinLocation" class="current-bin-box" style="display: none;">
+                                <h3>Current Bin: <span id="currentBinCode"></span></h3>
+                                <p id="currentBinInfo"></p>
+                            </div>
+                            <div class="scanning-container">
+                                <div class="scan-input-large">
+                                    <label for="binLocationInput" class="scan-label">Bin Location Code</label>
+                                    <p class="scan-hint">Scan QR code or type bin code</p>
+                                    <div class="input-with-button-large">
+                                        <input 
+                                            type="text" 
+                                            id="binLocationInput" 
+                                            class="form-control scan-input" 
+                                            placeholder="Scan or enter bin code..."
+                                            onkeypress="if(event.key==='Enter') handleBinLocationScan()"
+                                            autocomplete="off"
+                                            autofocus
+                                        >
+                                        <button onclick="startQRScan('binLocationInput', handleBinLocationScan)" class="btn btn-secondary btn-large" title="Scan QR Code">Scan</button>
+                                        <button onclick="handleBinLocationScan()" class="btn btn-primary btn-large">Scan</button>
+                                    </div>
+                                    <button onclick="clearBinLocation()" class="btn btn-link" id="clearBinBtn" style="display: none; margin-top: 10px;">Clear Bin Location</button>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- Scan Items -->
+                        <section class="card scanning-section" id="itemScanSection" style="display: none;">
+                            <div class="card-header">
+                                <h2 class="card-title">Scan Items</h2>
+                            </div>
+                            <div class="scanning-container">
+                                <div class="scan-input-large">
+                                    <label for="itemCodeInput" class="scan-label">Item Code</label>
+                                    <p class="scan-hint">Scan QR code for item</p>
+                                    <div class="input-with-button-large">
+                                        <input 
+                                            type="text" 
+                                            id="itemCodeInput" 
+                                            class="form-control scan-input" 
+                                            placeholder="Scan QR code or enter item code..."
+                                            onkeypress="if(event.key==='Enter') handleItemCodeScan()"
+                                            autocomplete="off"
+                                            autofocus
+                                        >
+                                        <button onclick="startQRScan('itemCodeInput', handleItemCodeScan)" class="btn btn-secondary btn-large" title="Scan QR Code">Scan</button>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="itemNameInput">Item Name (Optional)</label>
+                                        <input 
+                                            type="text" 
+                                            id="itemNameInput" 
+                                            class="form-control" 
+                                            placeholder="Auto-filled or enter manually"
+                                        >
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="itemQuantityInput">Quantity</label>
+                                        <input 
+                                            type="number" 
+                                            id="itemQuantityInput" 
+                                            class="form-control" 
+                                            min="0" 
+                                            value="1"
+                                            required
+                                        >
+                                    </div>
+                                </div>
+                                
+                                <div class="button-group-center">
+                                    <button onclick="addItemToBin()" class="btn btn-primary btn-large">Add Item to Bin</button>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- Items in Current Bin -->
+                        <section class="card scanning-section" id="binItemsSection" style="display: none;">
+                            <div class="card-header">
+                                <h2 class="card-title">Items in Current Bin</h2>
+                            </div>
+                            <div id="binItemsList" class="items-list"></div>
+                            <div id="noBinItems" class="no-items" style="display: none;">No items added yet. Scan items above.</div>
+                            <div class="button-group" style="margin-top: 20px;">
+                                <button onclick="submitBinLocation()" class="btn btn-success btn-large" id="submitBinBtn">Submit Bin Location</button>
+                                <button onclick="clearBinItems()" class="btn btn-secondary btn-large">Clear All Items</button>
+                            </div>
+                        </section>
+                    </div>
+
+                    <!-- Open Stock Takes Tab -->
+                    <div id="openStockTakesTab" class="tab-content">
+                        <div class="page-header">
+                            <h1 class="page-title">Open Stock Takes</h1>
+                            <p class="page-subtitle">View and manage active stock takes</p>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <h2 class="card-title">Active Stock Takes</h2>
+                                <button onclick="loadOpenStockTakes()" class="btn btn-secondary btn-small">Refresh</button>
+                            </div>
+                            <div id="openStockTakesList" class="items-list"></div>
+                            <div id="noOpenStockTakes" class="no-items" style="display: none;">No open stock takes found.</div>
+                        </div>
+                    </div>
+
+                    <!-- Setup Tab -->
+                    <div id="setupTab" class="tab-content">
+                        <div class="page-header">
+                            <h1 class="page-title">Setup</h1>
+                            <p class="page-subtitle">Configure companies, warehouses, and managers</p>
+                        </div>
+                        
+                        <!-- Company Selection -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h2 class="card-title">Company Configuration</h2>
+                            </div>
+                            <div class="form-group">
+                                <label for="selectedCompany">Select Company to Configure</label>
+                                <div class="input-with-button-large">
+                                    <select id="selectedCompany" class="form-control" onchange="onCompanySelected()">
+                                        <option value="">-- Select a Company --</option>
+                                    </select>
+                                    <button onclick="openAddCompanyModal()" class="btn btn-primary">New Company</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Company Details (shown when company selected) -->
+                        <div id="companyDetailsSection" style="display: none;">
+                            <!-- Warehouses Section -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h2 class="card-title">Warehouses</h2>
+                                    <button onclick="openAddWarehouseModal()" class="btn btn-primary btn-small">Add Warehouse</button>
+                                </div>
+                                <div id="warehousesList" class="items-list"></div>
+                                <div id="noWarehouses" class="no-items" style="display: none;">No warehouses found. Add a warehouse to get started.</div>
+                            </div>
+
+                            <!-- Bin Locations Section -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h2 class="card-title">Bin Locations</h2>
+                                    <button onclick="openAddBinLocationModal()" class="btn btn-primary btn-small">Add Bin Location</button>
+                                </div>
+                                <div class="form-group">
+                                    <label>Filter by Warehouse</label>
+                                    <select id="binLocationWarehouseFilter" class="form-control" onchange="loadBinLocationsForCompany()">
+                                        <option value="">All Warehouses</option>
+                                    </select>
+                                </div>
+                                <div id="binLocationsList" class="items-list"></div>
+                                <div id="noBinLocations" class="no-items" style="display: none;">No bin locations found. Add a bin location to get started.</div>
+                            </div>
+
+                            <!-- Managers Section -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h2 class="card-title">Warehouse Managers</h2>
+                                    <button onclick="openAddManagerModal()" class="btn btn-primary btn-small">Add Manager</button>
+                                </div>
+                                <div class="form-group">
+                                    <label>Filter by Warehouse</label>
+                                    <select id="managerWarehouseFilter" class="form-control" onchange="loadManagersForCompany()">
+                                        <option value="">All Warehouses</option>
+                                    </select>
+                                </div>
+                                <div id="managersList" class="items-list"></div>
+                                <div id="noManagers" class="no-items" style="display: none;">No managers found. Add a manager to get started.</div>
+                            </div>
+                        </div>
+
+                        <!-- All Companies List (shown when no company selected) -->
+                        <div id="allCompaniesSection" class="card">
+                            <div class="card-header">
+                                <h2 class="card-title">All Companies</h2>
+                                <button onclick="openAddCompanyModal()" class="btn btn-primary">Add Company</button>
+                            </div>
+                            <div id="companiesList" class="items-list"></div>
+                            <div id="noCompanies" class="no-items" style="display: none;">No companies found. Create your first company to get started.</div>
+                        </div>
+                    </div>
+
+                    <!-- View Items Tab -->
+                    <div id="viewTab" class="tab-content">
+                        <div class="page-header">
+                            <h1 class="page-title">View Items</h1>
+                            <p class="page-subtitle">Browse and manage stock items</p>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <h2 class="card-title">Stock Items</h2>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Filter by Company</label>
+                                    <select id="viewCompanyFilter" class="form-control" onchange="loadItems()">
+                                        <option value="">All Companies</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Filter by Warehouse</label>
+                                    <select id="viewWarehouseFilter" class="form-control" onchange="loadItems()">
+                                        <option value="">All Warehouses</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div id="itemsList" class="items-list"></div>
+                            <div id="noItems" class="no-items" style="display: none;">No items found in database.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Navigation (Bottom Bar) -->
+        <nav class="mobile-nav" id="mobileNav">
+            <div class="mobile-nav-items">
+                <!-- Navigation items will be populated by JavaScript -->
+            </div>
         </nav>
-
-        <!-- Open Stock Takes Tab -->
-        <div id="openStockTakesTab" class="tab-content">
-            <div class="view-container">
-                <div class="view-header">
-                    <h2>Open Stock Takes</h2>
-                    <button onclick="loadOpenStockTakes()" class="btn btn-secondary">Refresh</button>
-                </div>
-                <div id="openStockTakesList" class="items-list"></div>
-                <div id="noOpenStockTakes" class="no-items" style="display: none;">No open stock takes found.</div>
-            </div>
-        </div>
-
-        <!-- Setup Tab - Single Company Settings Screen (Manager Only) -->
-        <div id="setupTab" class="tab-content">
-            <div class="setup-container">
-                <!-- Company Selection -->
-                <div class="company-selector-section">
-                    <div class="form-group">
-                        <label for="selectedCompany">Select Company to Configure:</label>
-                        <div class="selector-with-button">
-                            <select id="selectedCompany" class="form-control" onchange="onCompanySelected()">
-                                <option value="">-- Select a Company --</option>
-                            </select>
-                            <button onclick="openAddCompanyModal()" class="btn btn-primary">+ New Company</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Company Details (shown when company selected) -->
-                <div id="companyDetailsSection" class="setup-section" style="display: none;">
-                    <div class="setup-header">
-                        <h2 id="selectedCompanyName">Company Setup</h2>
-                        <button onclick="editSelectedCompany()" class="btn btn-secondary">Edit Company</button>
-                    </div>
-
-                    <!-- Warehouses Section -->
-                    <div class="setup-subsection">
-                        <div class="subsection-header">
-                            <h3>Warehouses</h3>
-                            <button onclick="openAddWarehouseModal()" class="btn btn-primary btn-small">+ Add Warehouse</button>
-                        </div>
-                        <div id="warehousesList" class="items-list"></div>
-                        <div id="noWarehouses" class="no-items" style="display: none;">No warehouses found. Add a warehouse to get started.</div>
-                    </div>
-
-                    <!-- Bin Locations Section -->
-                    <div class="setup-subsection">
-                        <div class="subsection-header">
-                            <h3>Bin Locations</h3>
-                            <button onclick="openAddBinLocationModal()" class="btn btn-primary btn-small">+ Add Bin Location</button>
-                        </div>
-                        <div class="filter-box">
-                            <label>Filter by Warehouse:</label>
-                            <select id="binLocationWarehouseFilter" onchange="loadBinLocationsForCompany()">
-                                <option value="">All Warehouses</option>
-                            </select>
-                        </div>
-                        <div id="binLocationsList" class="items-list"></div>
-                        <div id="noBinLocations" class="no-items" style="display: none;">No bin locations found. Add a bin location to get started.</div>
-                    </div>
-
-                    <!-- Managers Section -->
-                    <div class="setup-subsection">
-                        <div class="subsection-header">
-                            <h3>Warehouse Managers</h3>
-                            <button onclick="openAddManagerModal()" class="btn btn-primary btn-small">+ Add Manager</button>
-                        </div>
-                        <div class="filter-box">
-                            <label>Filter by Warehouse:</label>
-                            <select id="managerWarehouseFilter" onchange="loadManagersForCompany()">
-                                <option value="">All Warehouses</option>
-                            </select>
-                        </div>
-                        <div id="managersList" class="items-list"></div>
-                        <div id="noManagers" class="no-items" style="display: none;">No managers found. Add a manager to get started.</div>
-                    </div>
-                </div>
-
-                <!-- All Companies List (shown when no company selected) -->
-                <div id="allCompaniesSection" class="setup-section">
-                    <div class="setup-header">
-                        <h2>All Companies</h2>
-                        <button onclick="openAddCompanyModal()" class="btn btn-primary">+ Add Company</button>
-                    </div>
-                    <div id="companiesList" class="items-list"></div>
-                    <div id="noCompanies" class="no-items" style="display: none;">No companies found. Create your first company to get started.</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Stock Take Tab - NEW WORKFLOW -->
-        <div id="stocktakeTab" class="tab-content active">
-            <div class="stock-take-workflow">
-                <!-- Counter Mode: Simple Start Counting -->
-                <section class="workflow-section" id="counterStartSection" style="display: none;">
-                    <h2>📱 Start Counting</h2>
-                    <div class="start-counting-container">
-                        <p class="start-hint">Scan a bin location to begin counting</p>
-                        <div class="scan-input-large">
-                            <label for="counterBinLocationInput" class="scan-label">Bin Location Code</label>
-                            <p class="scan-hint">Scan QR code or enter bin code</p>
-                            <div class="input-with-button-large">
-                                <input 
-                                    type="text" 
-                                    id="counterBinLocationInput" 
-                                    class="form-control scan-input" 
-                                    placeholder="Scan or enter bin code to start..."
-                                    onkeypress="if(event.key==='Enter') handleCounterBinLocationScan()"
-                                    autocomplete="off"
-                                    autofocus
-                                >
-                                <button onclick="startQRScan('counterBinLocationInput')" class="btn btn-secondary btn-large" title="Scan QR Code">📷</button>
-                                <button onclick="handleCounterBinLocationScan()" class="btn btn-primary btn-large">Start</button>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Manager Mode: Open/Close Stock Take -->
-                <section class="workflow-section" id="managerStockTakeSection" style="display: none;">
-                    <h2>1. Manage Stock Take</h2>
-                    <div id="stockTakeStatus" class="status-box">
-                        <p>No stock take open</p>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="openStockTakeCompany">Company *</label>
-                            <select id="openStockTakeCompany" class="form-control" required onchange="updateWarehousesForOpenStockTake()">
-                                <option value="">Select Company</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="openStockTakeWarehouse">Warehouse *</label>
-                            <select id="openStockTakeWarehouse" class="form-control" required onchange="validateManagerForWarehouse()">
-                                <option value="">Select Warehouse</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div id="managerValidationMessage" class="validation-message" style="display: none;"></div>
-                    <div class="button-group">
-                        <button onclick="openStockTake()" class="btn btn-primary" id="openStockTakeBtn">Open Stock Take</button>
-                        <button onclick="closeStockTake()" class="btn btn-danger" id="closeStockTakeBtn" style="display: none;">Close Stock Take</button>
-                    </div>
-                </section>
-
-                <!-- Step 2: Scan Bin Location -->
-                <section class="workflow-section scanning-section" id="binLocationSection" style="display: none;">
-                    <h2>📦 Scan Bin Location</h2>
-                    <div id="currentBinLocation" class="current-bin-box" style="display: none;">
-                        <h3>Current Bin: <span id="currentBinCode"></span></h3>
-                        <p id="currentBinInfo"></p>
-                    </div>
-                    <div class="scanning-container">
-                        <div class="scan-input-large">
-                            <label for="binLocationInput" class="scan-label">Bin Location Code</label>
-                            <p class="scan-hint">Scan QR code or type bin code</p>
-                            <div class="input-with-button-large">
-                                <input 
-                                    type="text" 
-                                    id="binLocationInput" 
-                                    class="form-control scan-input" 
-                                    placeholder="Scan or enter bin code..."
-                                    onkeypress="if(event.key==='Enter') handleBinLocationScan()"
-                                    autocomplete="off"
-                                    autofocus
-                                >
-                                <button onclick="startQRScan('binLocationInput')" class="btn btn-secondary btn-large" title="Scan QR Code">📷</button>
-                                <button onclick="handleBinLocationScan()" class="btn btn-primary btn-large">✓ Scan</button>
-                            </div>
-                            <button onclick="clearBinLocation()" class="btn btn-link" id="clearBinBtn" style="display: none; margin-top: 10px;">Clear Bin Location</button>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Step 3: Scan Items -->
-                <section class="workflow-section scanning-section" id="itemScanSection" style="display: none;">
-                    <h2>📱 Scan Items</h2>
-                    <div class="scanning-container">
-                        <div class="scan-input-large">
-                            <label for="itemCodeInput" class="scan-label">Item Code</label>
-                            <p class="scan-hint">Scan QR code for item</p>
-                            <div class="input-with-button-large">
-                                <input 
-                                    type="text" 
-                                    id="itemCodeInput" 
-                                    class="form-control scan-input" 
-                                    placeholder="Scan QR code or enter item code..."
-                                    onkeypress="if(event.key==='Enter') handleItemCodeScan()"
-                                    autocomplete="off"
-                                    autofocus
-                                >
-                                <button onclick="startQRScan('itemCodeInput')" class="btn btn-secondary btn-large" title="Scan QR Code">📷</button>
-                            </div>
-                        </div>
-                        
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="itemNameInput">Item Name (Optional)</label>
-                                <input 
-                                    type="text" 
-                                    id="itemNameInput" 
-                                    class="form-control" 
-                                    placeholder="Auto-filled or enter manually"
-                                >
-                            </div>
-                            <div class="form-group">
-                                <label for="itemQuantityInput">Quantity *</label>
-                                <input 
-                                    type="number" 
-                                    id="itemQuantityInput" 
-                                    class="form-control" 
-                                    min="0" 
-                                    value="0"
-                                    required
-                                >
-                            </div>
-                        </div>
-                        
-                        <div class="button-group-center">
-                            <button onclick="addItemToBin()" class="btn btn-primary btn-large">+ Add Item to Bin</button>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Step 4: Items in Current Bin -->
-                <section class="workflow-section" id="binItemsSection" style="display: none;">
-                    <h2>📋 Items in Current Bin</h2>
-                    <div id="binItemsList" class="items-list"></div>
-                    <div id="noBinItems" class="no-items" style="display: none;">No items added yet. Scan items above.</div>
-                    <div class="button-group-center" style="margin-top: 20px;">
-                        <button onclick="submitBinLocation()" class="btn btn-success btn-large" id="submitBinBtn">✅ Submit Bin Location</button>
-                        <button onclick="clearBinItems()" class="btn btn-secondary">Clear All Items</button>
-                    </div>
-                </section>
-            </div>
-        </div>
-
-        <!-- View Items Tab (Manager Only) -->
-        <div id="viewTab" class="tab-content">
-            <div class="view-container">
-                <div class="view-header">
-                    <h2>Stock Items</h2>
-                    <button onclick="loadItems()" class="btn btn-secondary">Refresh</button>
-                </div>
-                <div class="search-box">
-                    <input
-                        type="text"
-                        id="searchStockInput"
-                        placeholder="Search items by name, code, or notes..."
-                        class="search-input"
-                        oninput="handleStockSearch()"
-                    >
-                </div>
-                <div id="loadingStock" class="loading" style="display: none;">
-                    <div class="spinner"></div>
-                    <p>Loading items...</p>
-                </div>
-                <div id="errorStock" class="error" style="display: none;"></div>
-                <div id="stockItemsContainer" class="items-container">
-                    <div id="stockItemsList" class="items-list">
-                        <!-- Stock items will be loaded here -->
-                    </div>
-                </div>
-                <div id="noStockItems" class="no-items" style="display: none;">No stock items found.</div>
-            </div>
-        </div>
     </div>
 
-    <!-- Modals for Setup -->
-    <!-- Company Modals -->
-    <div id="addCompanyModal" class="modal" style="display: none;">
+    <!-- Modals -->
+    <!-- Add/Edit Company Modal -->
+    <div id="companyModal" class="modal">
         <div class="modal-content">
-            <span class="close" onclick="closeAddCompanyModal()">&times;</span>
-            <h2>Add Company</h2>
-            <form onsubmit="handleAddCompany(event)">
+            <div class="modal-header">
+                <h3 id="companyModalTitle">Add Company</h3>
+                <button class="modal-close" onclick="closeCompanyModal()">&times;</button>
+            </div>
+            <form id="companyForm" onsubmit="handleCompanySubmit(event)">
                 <div class="form-group">
-                    <label>Company Code *</label>
-                    <input type="text" id="addCompanyCode" class="form-control" required>
+                    <label for="companyName">Company Name</label>
+                    <input type="text" id="companyName" class="form-control" required>
                 </div>
-                <div class="form-group">
-                    <label>Company Name *</label>
-                    <input type="text" id="addCompanyName" class="form-control" required>
+                <div class="modal-actions">
+                    <button type="button" onclick="closeCompanyModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
                 </div>
-                <button type="submit" class="btn btn-primary">Add Company</button>
             </form>
         </div>
     </div>
 
-    <div id="editCompanyModal" class="modal" style="display: none;">
+    <!-- Add/Edit Warehouse Modal -->
+    <div id="warehouseModal" class="modal">
         <div class="modal-content">
-            <span class="close" onclick="closeEditCompanyModal()">&times;</span>
-            <h2>Edit Company</h2>
-            <form onsubmit="handleEditCompany(event)">
-                <input type="hidden" id="editCompanyId">
+            <div class="modal-header">
+                <h3 id="warehouseModalTitle">Add Warehouse</h3>
+                <button class="modal-close" onclick="closeWarehouseModal()">&times;</button>
+            </div>
+            <form id="warehouseForm" onsubmit="handleWarehouseSubmit(event)">
                 <div class="form-group">
-                    <label>Company Code *</label>
-                    <input type="text" id="editCompanyCode" class="form-control" required>
+                    <label for="warehouseName">Warehouse Name</label>
+                    <input type="text" id="warehouseName" class="form-control" required>
                 </div>
                 <div class="form-group">
-                    <label>Company Name *</label>
-                    <input type="text" id="editCompanyName" class="form-control" required>
+                    <label for="warehouseAddress">Address (Optional)</label>
+                    <input type="text" id="warehouseAddress" class="form-control">
                 </div>
-                <button type="submit" class="btn btn-primary">Update Company</button>
+                <div class="modal-actions">
+                    <button type="button" onclick="closeWarehouseModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
             </form>
         </div>
     </div>
 
-    <!-- Warehouse Modals -->
-    <div id="addWarehouseModal" class="modal" style="display: none;">
+    <!-- Add/Edit Bin Location Modal -->
+    <div id="binLocationModal" class="modal">
         <div class="modal-content">
-            <span class="close" onclick="closeAddWarehouseModal()">&times;</span>
-            <h2>Add Warehouse</h2>
-            <form onsubmit="handleAddWarehouse(event)">
+            <div class="modal-header">
+                <h3 id="binLocationModalTitle">Add Bin Location</h3>
+                <button class="modal-close" onclick="closeBinLocationModal()">&times;</button>
+            </div>
+            <form id="binLocationForm" onsubmit="handleBinLocationSubmit(event)">
                 <div class="form-group">
-                    <label>Company *</label>
-                    <select id="addWarehouseCompany" class="form-control" required>
-                        <option value="">Select Company</option>
-                    </select>
+                    <label for="binCode">Bin Code</label>
+                    <input type="text" id="binCode" class="form-control" required>
                 </div>
                 <div class="form-group">
-                    <label>Warehouse Code *</label>
-                    <input type="text" id="addWarehouseCode" class="form-control" required>
+                    <label for="binName">Bin Name (Optional)</label>
+                    <input type="text" id="binName" class="form-control">
                 </div>
                 <div class="form-group">
-                    <label>Warehouse Name *</label>
-                    <input type="text" id="addWarehouseName" class="form-control" required>
-                </div>
-                <div class="form-group">
-                    <label>Address</label>
-                    <textarea id="addWarehouseAddress" class="form-control" rows="2"></textarea>
-                </div>
-                <button type="submit" class="btn btn-primary">Add Warehouse</button>
-            </form>
-        </div>
-    </div>
-
-    <div id="editWarehouseModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <span class="close" onclick="closeEditWarehouseModal()">&times;</span>
-            <h2>Edit Warehouse</h2>
-            <form onsubmit="handleEditWarehouse(event)">
-                <input type="hidden" id="editWarehouseId">
-                <div class="form-group">
-                    <label>Company *</label>
-                    <select id="editWarehouseCompany" class="form-control" required>
-                        <option value="">Select Company</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Warehouse Code *</label>
-                    <input type="text" id="editWarehouseCode" class="form-control" required>
-                </div>
-                <div class="form-group">
-                    <label>Warehouse Name *</label>
-                    <input type="text" id="editWarehouseName" class="form-control" required>
-                </div>
-                <div class="form-group">
-                    <label>Address</label>
-                    <textarea id="editWarehouseAddress" class="form-control" rows="2"></textarea>
-                </div>
-                <button type="submit" class="btn btn-primary">Update Warehouse</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- Bin Location Modals -->
-    <div id="addBinLocationModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <span class="close" onclick="closeAddBinLocationModal()">&times;</span>
-            <h2>Add Bin Location</h2>
-            <form onsubmit="handleAddBinLocation(event)">
-                <div class="form-group">
-                    <label>Warehouse *</label>
-                    <select id="addBinLocationWarehouse" class="form-control" required>
+                    <label for="binWarehouse">Warehouse</label>
+                    <select id="binWarehouse" class="form-control" required>
                         <option value="">Select Warehouse</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Bin Code *</label>
-                    <input type="text" id="addBinLocationCode" class="form-control" required placeholder="e.g., A-01-02-03">
+                    <label for="binAisle">Aisle (Optional)</label>
+                    <input type="text" id="binAisle" class="form-control">
                 </div>
-                <div class="form-group">
-                    <label>Bin Name</label>
-                    <input type="text" id="addBinLocationName" class="form-control">
+                <div class="modal-actions">
+                    <button type="button" onclick="closeBinLocationModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Aisle</label>
-                        <input type="text" id="addBinLocationAisle" class="form-control">
-                    </div>
-                    <div class="form-group">
-                        <label>Shelf</label>
-                        <input type="text" id="addBinLocationShelf" class="form-control">
-                    </div>
-                    <div class="form-group">
-                        <label>Level</label>
-                        <input type="text" id="addBinLocationLevel" class="form-control">
-                    </div>
-                </div>
-                <button type="submit" class="btn btn-primary">Add Bin Location</button>
             </form>
         </div>
     </div>
 
-    <div id="editBinLocationModal" class="modal" style="display: none;">
+    <!-- Add/Edit Manager Modal -->
+    <div id="managerModal" class="modal">
         <div class="modal-content">
-            <span class="close" onclick="closeEditBinLocationModal()">&times;</span>
-            <h2>Edit Bin Location</h2>
-            <form onsubmit="handleEditBinLocation(event)">
-                <input type="hidden" id="editBinLocationId">
+            <div class="modal-header">
+                <h3 id="managerModalTitle">Add Manager</h3>
+                <button class="modal-close" onclick="closeManagerModal()">&times;</button>
+            </div>
+            <form id="managerForm" onsubmit="handleManagerSubmit(event)">
                 <div class="form-group">
-                    <label>Warehouse *</label>
-                    <select id="editBinLocationWarehouse" class="form-control" required>
+                    <label for="managerName">Manager Name</label>
+                    <input type="text" id="managerName" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="managerEmail">Email (Optional)</label>
+                    <input type="email" id="managerEmail" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label for="managerWarehouse">Warehouse</label>
+                    <select id="managerWarehouse" class="form-control" required>
                         <option value="">Select Warehouse</option>
                     </select>
                 </div>
-                <div class="form-group">
-                    <label>Bin Code *</label>
-                    <input type="text" id="editBinLocationCode" class="form-control" required>
+                <div class="modal-actions">
+                    <button type="button" onclick="closeManagerModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
                 </div>
-                <div class="form-group">
-                    <label>Bin Name</label>
-                    <input type="text" id="editBinLocationName" class="form-control">
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Aisle</label>
-                        <input type="text" id="editBinLocationAisle" class="form-control">
-                    </div>
-                    <div class="form-group">
-                        <label>Shelf</label>
-                        <input type="text" id="editBinLocationShelf" class="form-control">
-                    </div>
-                    <div class="form-group">
-                        <label>Level</label>
-                        <input type="text" id="editBinLocationLevel" class="form-control">
-                    </div>
-                </div>
-                <button type="submit" class="btn btn-primary">Update Bin Location</button>
             </form>
         </div>
     </div>
 
-    <!-- Manager Modals -->
-    <div id="addManagerModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <span class="close" onclick="closeAddManagerModal()">&times;</span>
-            <h2>Add Manager</h2>
-            <form onsubmit="handleAddManager(event)">
-                <div class="form-group">
-                    <label>Warehouse *</label>
-                    <select id="addManagerWarehouse" class="form-control" required>
-                        <option value="">Select Warehouse</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Manager Name *</label>
-                    <input type="text" id="addManagerName" class="form-control" required>
-                </div>
-                <div class="form-group">
-                    <label>Email</label>
-                    <input type="email" id="addManagerEmail" class="form-control">
-                </div>
-                <div class="form-group">
-                    <label>Phone</label>
-                    <input type="text" id="addManagerPhone" class="form-control">
-                </div>
-                <button type="submit" class="btn btn-primary">Add Manager</button>
-            </form>
-        </div>
-    </div>
-
-    <div id="editManagerModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <span class="close" onclick="closeEditManagerModal()">&times;</span>
-            <h2>Edit Manager</h2>
-            <form onsubmit="handleEditManager(event)">
-                <input type="hidden" id="editManagerId">
-                <div class="form-group">
-                    <label>Warehouse *</label>
-                    <select id="editManagerWarehouse" class="form-control" required>
-                        <option value="">Select Warehouse</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Manager Name *</label>
-                    <input type="text" id="editManagerName" class="form-control" required>
-                </div>
-                <div class="form-group">
-                    <label>Email</label>
-                    <input type="email" id="editManagerEmail" class="form-control">
-                </div>
-                <div class="form-group">
-                    <label>Phone</label>
-                    <input type="text" id="editManagerPhone" class="form-control">
-                </div>
-                <button type="submit" class="btn btn-primary">Update Manager</button>
-            </form>
+    <!-- QR Scanner Modal -->
+    <div id="qrScannerModal" class="modal">
+        <div class="modal-content qr-scanner-content">
+            <div class="modal-header">
+                <h3>Scan QR Code</h3>
+                <button class="modal-close" onclick="stopQRScan()">&times;</button>
+            </div>
+            <div id="qr-reader" style="width:100%;"></div>
+            <div id="qr-reader-results"></div>
+            <p class="qr-hint">Position the QR code within the camera view</p>
         </div>
     </div>
 
     <script src="js/config.js"></script>
     <script src="js/app.js"></script>
-    <script>
-        // Immediate test - verify buttons exist and function is available
-        window.addEventListener('load', function() {
-            console.log('=== PAGE LOADED ===');
-            console.log('selectRole available:', typeof selectRole);
-            console.log('window.selectRole available:', typeof window.selectRole);
-            
-            const counterBtn = document.getElementById('counterBtn');
-            const managerBtn = document.getElementById('managerBtn');
-            console.log('counterBtn:', counterBtn);
-            console.log('managerBtn:', managerBtn);
-            
-            // Test direct click
-            if (counterBtn) {
-                console.log('Counter button exists, adding direct test listener');
-                counterBtn.onclick = function() {
-                    console.log('DIRECT ONCLICK FIRED FOR COUNTER');
-                    if (window.selectRole) {
-                        window.selectRole('counter');
-                    }
-                };
-            }
-            
-            if (managerBtn) {
-                console.log('Manager button exists, adding direct test listener');
-                managerBtn.onclick = function() {
-                    console.log('DIRECT ONCLICK FIRED FOR MANAGER');
-                    if (window.selectRole) {
-                        window.selectRole('manager');
-                    }
-                };
-            }
-        });
-    </script>
 </body>
 </html>

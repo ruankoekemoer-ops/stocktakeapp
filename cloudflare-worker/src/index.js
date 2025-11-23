@@ -346,36 +346,9 @@ export default {
         });
       }
 
-      // Get single stock take by ID
-      if (path.startsWith('/api/stock-takes/') && !path.endsWith('/close') && request.method === 'GET') {
-        const id = path.split('/').pop();
-        
-        const stockTake = await env.DB.prepare(
-          `SELECT st.*, 
-            c.company_name, 
-            w.warehouse_name,
-            m.manager_name as opened_by_name
-          FROM stock_takes st
-          LEFT JOIN companies c ON st.company_id = c.id
-          LEFT JOIN warehouses w ON st.warehouse_id = w.id
-          LEFT JOIN warehouse_managers m ON st.opened_by_manager_id = m.id
-          WHERE st.id = ?`
-        ).bind(id).first();
-        
-        if (!stockTake) {
-          return new Response(JSON.stringify({ error: 'Stock take not found' }), {
-            status: 404,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-        
-        return new Response(JSON.stringify(stockTake), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
       // Get active (open) stock take for warehouse/company
       // Stock takes are opened at Company + Warehouse level, not bin location level
+      // MUST come before the /api/stock-takes/:id route to avoid matching "active" as an ID
       if (path === '/api/stock-takes/active' && request.method === 'GET') {
         const companyId = url.searchParams.get('company_id');
         const warehouseId = url.searchParams.get('warehouse_id');
@@ -391,9 +364,8 @@ export default {
         const companyIdInt = parseInt(companyId);
         const warehouseIdInt = parseInt(warehouseId);
         
-        // Query for open stock take matching company and warehouse
-        // Any bin location in this warehouse/company can be counted against this stock take
-        const result = await env.DB.prepare(
+        // Debug: Check all open stock takes first
+        const allOpenStockTakes = await env.DB.prepare(
           `SELECT st.*, 
             c.company_name, 
             w.warehouse_name,
@@ -402,12 +374,60 @@ export default {
           LEFT JOIN companies c ON st.company_id = c.id
           LEFT JOIN warehouses w ON st.warehouse_id = w.id
           LEFT JOIN warehouse_managers m ON st.opened_by_manager_id = m.id
-          WHERE st.company_id = ? AND st.warehouse_id = ? AND st.status = 'open'
-          ORDER BY st.opened_at DESC
-          LIMIT 1`
-        ).bind(companyIdInt, warehouseIdInt).first();
+          WHERE st.status = 'open'
+          ORDER BY st.opened_at DESC`
+        ).all();
         
-        return new Response(JSON.stringify(result || null), {
+        // Query for open stock take matching company and warehouse
+        // Any bin location in this warehouse/company can be counted against this stock take
+        let result;
+        try {
+          result = await env.DB.prepare(
+            `SELECT st.*, 
+              c.company_name, 
+              w.warehouse_name,
+              m.manager_name as opened_by_name
+            FROM stock_takes st
+            LEFT JOIN companies c ON st.company_id = c.id
+            LEFT JOIN warehouses w ON st.warehouse_id = w.id
+            LEFT JOIN warehouse_managers m ON st.opened_by_manager_id = m.id
+            WHERE st.company_id = ? AND st.warehouse_id = ? AND st.status = 'open'
+            ORDER BY st.opened_at DESC
+            LIMIT 1`
+          ).bind(companyIdInt, warehouseIdInt).first();
+        } catch (error) {
+          console.error('Database error in stock-takes/active:', error);
+          return new Response(JSON.stringify({ 
+            error: 'Database error',
+            message: error.message,
+            debug: {
+              requested_company_id: companyIdInt,
+              requested_warehouse_id: warehouseIdInt,
+              all_open_stock_takes: allOpenStockTakes.results || []
+            }
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        // If no result, return debug info (but still 200 OK, not 404)
+        if (!result) {
+          return new Response(JSON.stringify({
+            result: null,
+            debug: {
+              requested_company_id: companyIdInt,
+              requested_warehouse_id: warehouseIdInt,
+              all_open_stock_takes: allOpenStockTakes.results || []
+            }
+          }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        return new Response(JSON.stringify(result), {
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
@@ -525,8 +545,17 @@ export default {
         }
         
         // Find bin location by code
+        // Returns: bin location details with warehouse_id and company_id for stock take lookup
         const binLocation = await env.DB.prepare(
-          `SELECT b.*, w.id as warehouse_id, w.warehouse_name, w.company_id, c.company_name
+          `SELECT 
+            b.id,
+            b.bin_code,
+            b.bin_name,
+            b.warehouse_id,
+            w.id as warehouse_id,
+            w.warehouse_name,
+            w.company_id,
+            c.company_name
           FROM bin_locations b
           LEFT JOIN warehouses w ON b.warehouse_id = w.id
           LEFT JOIN companies c ON w.company_id = c.id
@@ -987,7 +1016,9 @@ export default {
       }
 
       // 404 for unknown routes
-      return new Response(JSON.stringify({ error: 'Not found' }), {
+      // Log the path for debugging
+      console.log('404 - Route not found:', path, 'Method:', request.method);
+      return new Response(JSON.stringify({ error: 'Not found', path: path, method: request.method }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
