@@ -856,3 +856,16 @@ textarea.form-control {
     color: #155724;
     margin: 0;
 }
+
+/* Start Counting Container */
+.start-counting-container {
+    text-align: center;
+    padding: 2rem;
+}
+
+.start-hint {
+    font-size: 1.2rem;
+    color: #666;
+    margin-bottom: 2rem;
+    font-weight: 500;
+}

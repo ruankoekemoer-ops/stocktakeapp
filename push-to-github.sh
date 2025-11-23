@@ -26,18 +26,15 @@ fi
 
 # Commit changes
 echo "💾 Committing changes..."
-git commit -m "Add role selection screen and fix scanning interface
+git commit -m "Fix counter mode: Only count against existing open stock takes
 
-- Added role selection screen that appears first on app load
-- Counter mode: Only shows Stock Take and Open Stock Takes tabs (NO setup/view)
-- Manager mode: Shows all tabs (Setup, Stock Take, View Items, Open Stock Takes)
-- Fixed scanning interface visibility - now shows when stock take is open
-- Added Open Stock Takes list with ability to open/close stock takes
-- Enhanced scanning sections with auto-focus and auto-scroll
-- Added API endpoint to get single stock take by ID
-- Role preference saved in localStorage
-- Switch Role button to change roles
-- Improved visual hierarchy and mobile-friendly scanning inputs"
+- Counter can no longer open stock takes (only managers can)
+- Counter must scan bin location first, which checks for open stock take
+- If no open stock take exists, counter gets clear error message
+- Counter interface simplified: Only shows 'Start Counting' with bin scan
+- Manager interface unchanged: Can open/close stock takes
+- Improved error handling and user feedback
+- Removed unnecessary success alerts"
 
 # Push to GitHub
 echo "🚀 Pushing to GitHub..."

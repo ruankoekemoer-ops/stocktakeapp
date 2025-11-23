@@ -109,6 +109,12 @@ function setRole(role, saveToStorage = true) {
         if (stocktakeTabBtn) stocktakeTabBtn.style.display = 'inline-block';
         if (openStockTakesTabBtn) openStockTakesTabBtn.style.display = 'inline-block';
         
+        // Show counter start section, hide manager section
+        const counterStartSection = document.getElementById('counterStartSection');
+        const managerStockTakeSection = document.getElementById('managerStockTakeSection');
+        if (counterStartSection) counterStartSection.style.display = 'block';
+        if (managerStockTakeSection) managerStockTakeSection.style.display = 'none';
+        
         // Switch to stock take tab
         if (!document.getElementById('stocktakeTab').classList.contains('active')) {
             showTab('stocktake');
@@ -116,12 +122,24 @@ function setRole(role, saveToStorage = true) {
         
         // Load open stock takes
         loadOpenStockTakes();
+        
+        // Focus on counter bin input
+        setTimeout(() => {
+            const counterBinInput = document.getElementById('counterBinLocationInput');
+            if (counterBinInput) counterBinInput.focus();
+        }, 100);
     } else {
         // Manager mode: Show all tabs
         if (setupTabBtn) setupTabBtn.style.display = 'inline-block';
         if (viewTabBtn) viewTabBtn.style.display = 'inline-block';
         if (stocktakeTabBtn) stocktakeTabBtn.style.display = 'inline-block';
         if (openStockTakesTabBtn) openStockTakesTabBtn.style.display = 'inline-block';
+        
+        // Show manager section, hide counter section
+        const counterStartSection = document.getElementById('counterStartSection');
+        const managerStockTakeSection = document.getElementById('managerStockTakeSection');
+        if (counterStartSection) counterStartSection.style.display = 'none';
+        if (managerStockTakeSection) managerStockTakeSection.style.display = 'block';
     }
 }
 window.setRole = setRole;
@@ -1518,48 +1536,145 @@ function updateStockTakeStatus() {
     const itemSection = document.getElementById('itemScanSection');
     const binItemsSection = document.getElementById('binItemsSection');
     
-    if (!statusBox) return; // Exit if elements don't exist yet
+    // Only update manager section if it exists (manager mode)
+    if (statusBox && openBtn && closeBtn) {
+        if (currentStockTake) {
+            statusBox.innerHTML = `
+                <p><strong>✅ Stock Take Open</strong></p>
+                <p>Company: ${escapeHtml(currentStockTake.company_name)}</p>
+                <p>Warehouse: ${escapeHtml(currentStockTake.warehouse_name)}</p>
+                <p>Opened: ${formatDate(currentStockTake.opened_at)}</p>
+            `;
+            statusBox.className = 'status-box success';
+            openBtn.style.display = 'none';
+            closeBtn.style.display = 'inline-block';
+        } else {
+            statusBox.innerHTML = '<p>No stock take open</p>';
+            statusBox.className = 'status-box';
+            openBtn.style.display = 'inline-block';
+            closeBtn.style.display = 'none';
+        }
+    }
     
+    // Handle scanning sections visibility
     if (currentStockTake) {
-        statusBox.innerHTML = `
-            <p><strong>✅ Stock Take Open</strong></p>
-            <p>Company: ${escapeHtml(currentStockTake.company_name)}</p>
-            <p>Warehouse: ${escapeHtml(currentStockTake.warehouse_name)}</p>
-            <p>Opened: ${formatDate(currentStockTake.opened_at)}</p>
-        `;
-        statusBox.className = 'status-box success';
-        openBtn.style.display = 'none';
-        closeBtn.style.display = 'inline-block';
-        
         // Show scanning sections - ALWAYS show bin location section when stock take is open
         if (binSection) {
             binSection.style.display = 'block';
             binSection.style.visibility = 'visible';
         }
         
-        // Scroll to bin location section to make it visible
-        setTimeout(() => {
-            if (binSection) {
-                binSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-            // Focus on bin location input for immediate scanning
-            const binInput = document.getElementById('binLocationInput');
-            if (binInput) {
-                binInput.focus();
-                binInput.select();
-            }
-        }, 100);
+        // Scroll to bin location section to make it visible (manager mode)
+        if (currentRole === 'manager') {
+            setTimeout(() => {
+                if (binSection) {
+                    binSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+                // Focus on bin location input for immediate scanning
+                const binInput = document.getElementById('binLocationInput');
+                if (binInput) {
+                    binInput.focus();
+                    binInput.select();
+                }
+            }, 100);
+        }
     } else {
-        statusBox.innerHTML = '<p>No stock take open</p>';
-        statusBox.className = 'status-box';
-        openBtn.style.display = 'inline-block';
-        closeBtn.style.display = 'none';
-        binSection.style.display = 'none';
-        itemSection.style.display = 'none';
-        binItemsSection.style.display = 'none';
+        // Hide scanning sections when no stock take
+        if (binSection) binSection.style.display = 'none';
+        if (itemSection) itemSection.style.display = 'none';
+        if (binItemsSection) binItemsSection.style.display = 'none';
     }
 }
 
+// Counter mode: Scan bin location to start counting (requires open stock take)
+async function handleCounterBinLocationScan() {
+    const binCode = document.getElementById('counterBinLocationInput').value.trim();
+    
+    if (!binCode) {
+        alert('Please enter or scan a bin location code');
+        return;
+    }
+    
+    try {
+        // First, lookup the bin location to get company/warehouse
+        const lookupResponse = await fetch(`${CONFIG.apiUrl}/bin-locations/lookup?bin_code=${encodeURIComponent(binCode)}`);
+        
+        if (!lookupResponse.ok) {
+            const error = await lookupResponse.json();
+            throw new Error(error.error || 'Bin location not found');
+        }
+        
+        const binLocation = await lookupResponse.json();
+        
+        // Check if there's an open stock take for this warehouse/company
+        const stockTakeResponse = await fetch(`${CONFIG.apiUrl}/stock-takes/active?company_id=${binLocation.company_id}&warehouse_id=${binLocation.warehouse_id}`);
+        
+        if (!stockTakeResponse.ok) {
+            throw new Error('Failed to check for open stock take');
+        }
+        
+        const stockTake = await stockTakeResponse.json();
+        
+        // Counter can ONLY count against existing open stock takes
+        if (!stockTake) {
+            throw new Error(`No open stock take found for this bin location.\n\nBin: ${binLocation.bin_code}\nWarehouse: ${binLocation.warehouse_name}\nCompany: ${binLocation.company_name}\n\nPlease ask a manager to open a stock take first.`);
+        }
+        
+        // Verify bin location belongs to the stock take's warehouse/company
+        if (binLocation.company_id != stockTake.company_id || binLocation.warehouse_id != stockTake.warehouse_id) {
+            throw new Error('Bin location does not match the open stock take. Please scan a bin from the correct warehouse.');
+        }
+        
+        // Set current stock take and bin location
+        currentStockTake = stockTake;
+        currentBinLocation = binLocation;
+        
+        // Update UI
+        updateStockTakeStatus();
+        
+        // Show bin location info
+        document.getElementById('currentBinCode').textContent = binLocation.bin_code;
+        document.getElementById('currentBinInfo').textContent = `${binLocation.warehouse_name} - ${binLocation.company_name}`;
+        document.getElementById('currentBinLocation').style.display = 'block';
+        document.getElementById('clearBinBtn').style.display = 'inline-block';
+        
+        // Hide counter start section, show scanning sections
+        document.getElementById('counterStartSection').style.display = 'none';
+        document.getElementById('binLocationSection').style.display = 'block';
+        
+        // Show item scan section and bin items section
+        const itemSection = document.getElementById('itemScanSection');
+        const binItemsSection = document.getElementById('binItemsSection');
+        if (itemSection) itemSection.style.display = 'block';
+        if (binItemsSection) binItemsSection.style.display = 'block';
+        
+        // Scroll to item scan section
+        setTimeout(() => {
+            if (itemSection) {
+                itemSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // Focus on item code input
+                const itemCodeInput = document.getElementById('itemCodeInput');
+                if (itemCodeInput) itemCodeInput.focus();
+            }
+        }, 300);
+        
+        // Load items for this bin
+        loadBinItems();
+        
+        // Clear counter bin location input
+        document.getElementById('counterBinLocationInput').value = '';
+    } catch (error) {
+        alert(`❌ Error: ${error.message}`);
+        // Keep focus on input for retry
+        setTimeout(() => {
+            const counterBinInput = document.getElementById('counterBinLocationInput');
+            if (counterBinInput) counterBinInput.focus();
+        }, 100);
+    }
+}
+window.handleCounterBinLocationScan = handleCounterBinLocationScan;
+
+// Manager mode: Scan bin location (requires stock take to be open first)
 async function handleBinLocationScan() {
     const binCode = document.getElementById('binLocationInput').value.trim();
     

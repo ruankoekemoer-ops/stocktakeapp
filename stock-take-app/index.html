@@ -135,8 +135,32 @@
         <!-- Stock Take Tab - NEW WORKFLOW -->
         <div id="stocktakeTab" class="tab-content active">
             <div class="stock-take-workflow">
-                <!-- Step 1: Open/Close Stock Take -->
-                <section class="workflow-section">
+                <!-- Counter Mode: Simple Start Counting -->
+                <section class="workflow-section" id="counterStartSection" style="display: none;">
+                    <h2>📱 Start Counting</h2>
+                    <div class="start-counting-container">
+                        <p class="start-hint">Scan a bin location to begin counting</p>
+                        <div class="scan-input-large">
+                            <label for="counterBinLocationInput" class="scan-label">Bin Location Code</label>
+                            <p class="scan-hint">Scan QR code or enter bin code</p>
+                            <div class="input-with-button-large">
+                                <input 
+                                    type="text" 
+                                    id="counterBinLocationInput" 
+                                    class="form-control scan-input" 
+                                    placeholder="Scan or enter bin code to start..."
+                                    onkeypress="if(event.key==='Enter') handleCounterBinLocationScan()"
+                                    autocomplete="off"
+                                    autofocus
+                                >
+                                <button onclick="handleCounterBinLocationScan()" class="btn btn-primary btn-large">Start</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Manager Mode: Open/Close Stock Take -->
+                <section class="workflow-section" id="managerStockTakeSection" style="display: none;">
                     <h2>1. Manage Stock Take</h2>
                     <div id="stockTakeStatus" class="status-box">
                         <p>No stock take open</p>
