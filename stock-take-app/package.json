@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "Stock Take Management System - Local Development",
   "scripts": {
-    "dev": "python3 -m http.server 8000",
-    "start": "python3 -m http.server 8000"
+    "dev": "python3 -m http.server 8080",
+    "start": "python3 -m http.server 8080"
   },
   "keywords": [
     "stock-take",

@@ -15,12 +15,12 @@
             <h1>📦 Stock Take Management System</h1>
             <p class="subtitle">Select your role to continue</p>
             <div class="role-options">
-                <button onclick="selectRole('counter')" class="role-option-btn counter-btn">
+                <button type="button" class="role-option-btn counter-btn" id="counterBtn">
                     <div class="role-icon">📱</div>
                     <h2>Counter</h2>
                     <p>Scan and count inventory items</p>
                 </button>
-                <button onclick="selectRole('manager')" class="role-option-btn manager-btn">
+                <button type="button" class="role-option-btn manager-btn" id="managerBtn">
                     <div class="role-icon">⚙️</div>
                     <h2>Manager</h2>
                     <p>Manage companies, warehouses, and view reports</p>
@@ -547,5 +547,39 @@
 
     <script src="js/config.js"></script>
     <script src="js/app.js"></script>
+    <script>
+        // Immediate test - verify buttons exist and function is available
+        window.addEventListener('load', function() {
+            console.log('=== PAGE LOADED ===');
+            console.log('selectRole available:', typeof selectRole);
+            console.log('window.selectRole available:', typeof window.selectRole);
+            
+            const counterBtn = document.getElementById('counterBtn');
+            const managerBtn = document.getElementById('managerBtn');
+            console.log('counterBtn:', counterBtn);
+            console.log('managerBtn:', managerBtn);
+            
+            // Test direct click
+            if (counterBtn) {
+                console.log('Counter button exists, adding direct test listener');
+                counterBtn.onclick = function() {
+                    console.log('DIRECT ONCLICK FIRED FOR COUNTER');
+                    if (window.selectRole) {
+                        window.selectRole('counter');
+                    }
+                };
+            }
+            
+            if (managerBtn) {
+                console.log('Manager button exists, adding direct test listener');
+                managerBtn.onclick = function() {
+                    console.log('DIRECT ONCLICK FIRED FOR MANAGER');
+                    if (window.selectRole) {
+                        window.selectRole('manager');
+                    }
+                };
+            }
+        });
+    </script>
 </body>
 </html>

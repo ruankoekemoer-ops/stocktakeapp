@@ -51,6 +51,8 @@ body {
     border-radius: 12px;
     padding: 2rem;
     cursor: pointer;
+    position: relative;
+    z-index: 1;
     transition: all 0.3s;
     text-align: center;
 }
@@ -72,17 +74,20 @@ body {
 .role-icon {
     font-size: 4rem;
     margin-bottom: 1rem;
+    pointer-events: none;
 }
 
 .role-option-btn h2 {
     color: #333;
     margin-bottom: 0.5rem;
     font-size: 1.5rem;
+    pointer-events: none;
 }
 
 .role-option-btn p {
     color: #666;
     font-size: 0.95rem;
+    pointer-events: none;
 }
 
 .container {

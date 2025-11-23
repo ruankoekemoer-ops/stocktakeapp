@@ -11,35 +11,116 @@ let warehouses = [];
 let binLocations = [];
 let managers = [];
 let currentRole = 'manager'; // 'counter' or 'manager'
-let currentStockTake = null;
+// currentStockTake already declared at top of file
 let currentBinLocation = null;
 let currentBinItems = [];
 let qrScanner = null; // QR Code scanner instance
+
+// Define selectRole function immediately so it's available for onclick handlers
+function selectRole(role) {
+    try {
+        console.log('Selecting role:', role);
+        
+        if (!role || (role !== 'counter' && role !== 'manager')) {
+            console.error('Invalid role:', role);
+            return;
+        }
+        
+        localStorage.setItem('stockTakeRole', role);
+        
+        const roleSelectionScreen = document.getElementById('roleSelectionScreen');
+        const mainApp = document.getElementById('mainApp');
+        
+        if (!roleSelectionScreen || !mainApp) {
+            console.error('Required DOM elements not found');
+            alert('Error: Page elements not found. Please refresh the page.');
+            return;
+        }
+        
+        roleSelectionScreen.style.display = 'none';
+        mainApp.style.display = 'block';
+        
+        // Small delay to ensure DOM is ready
+        setTimeout(() => {
+            initializeApp(role);
+        }, 50);
+    } catch (error) {
+        console.error('Error in selectRole:', error);
+        alert('Error selecting role: ' + error.message + '. Please refresh the page and try again.');
+    }
+}
+
+// Make function available globally immediately
+if (typeof window !== 'undefined') {
+    window.selectRole = selectRole;
+    console.log('selectRole function registered on window');
+}
 
 /**
  * Initialize app
  */
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Stock Take Management System initialized');
+    console.log('selectRole function available:', typeof window.selectRole);
+    console.log('selectRole function available (direct):', typeof selectRole);
     
-    // Add event listeners to role buttons as fallback
-    const counterBtn = document.querySelector('.counter-btn');
-    const managerBtn = document.querySelector('.manager-btn');
+    // Add event listeners to role buttons using IDs
+    const counterBtn = document.getElementById('counterBtn');
+    const managerBtn = document.getElementById('managerBtn');
+    
+    console.log('Counter button found:', !!counterBtn);
+    console.log('Manager button found:', !!managerBtn);
     
     if (counterBtn) {
-        counterBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            console.log('Counter button clicked');
-            selectRole('counter');
+        // Use mousedown as well to catch all interactions
+        ['click', 'mousedown', 'touchstart'].forEach(eventType => {
+            counterBtn.addEventListener(eventType, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Counter button ' + eventType + ' event!');
+                try {
+                    if (typeof selectRole === 'function') {
+                        selectRole('counter');
+                    } else if (typeof window.selectRole === 'function') {
+                        window.selectRole('counter');
+                    } else {
+                        throw new Error('selectRole function not found');
+                    }
+                } catch (error) {
+                    console.error('Error in counter button click:', error);
+                    alert('Error: ' + error.message);
+                }
+            }, { passive: false });
         });
+        console.log('Counter button event listeners added');
+    } else {
+        console.error('Counter button not found!');
     }
     
     if (managerBtn) {
-        managerBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            console.log('Manager button clicked');
-            selectRole('manager');
+        // Use mousedown as well to catch all interactions
+        ['click', 'mousedown', 'touchstart'].forEach(eventType => {
+            managerBtn.addEventListener(eventType, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Manager button ' + eventType + ' event!');
+                try {
+                    if (typeof selectRole === 'function') {
+                        selectRole('manager');
+                    } else if (typeof window.selectRole === 'function') {
+                        window.selectRole('manager');
+                    } else {
+                        throw new Error('selectRole function not found');
+                    }
+                } catch (error) {
+                    console.error('Error in manager button click:', error);
+                    alert('Error: ' + error.message);
+                }
+            }, { passive: false });
         });
+        console.log('Manager button event listeners added');
+    } else {
+        console.error('Manager button not found!');
     }
     
     // Check if role is already selected
@@ -101,36 +182,7 @@ function initializeApp(role) {
     }
 }
 
-function selectRole(role) {
-    try {
-        console.log('Selecting role:', role);
-        localStorage.setItem('stockTakeRole', role);
-        
-        const roleSelectionScreen = document.getElementById('roleSelectionScreen');
-        const mainApp = document.getElementById('mainApp');
-        
-        if (roleSelectionScreen) {
-            roleSelectionScreen.style.display = 'none';
-        }
-        
-        if (mainApp) {
-            mainApp.style.display = 'block';
-        }
-        
-        // Small delay to ensure DOM is ready
-        setTimeout(() => {
-            initializeApp(role);
-        }, 50);
-    } catch (error) {
-        console.error('Error in selectRole:', error);
-        alert('Error selecting role. Please refresh the page and try again.');
-    }
-}
-// Make function available globally immediately
-window.selectRole = selectRole;
-
-// Debug: Verify function is available
-console.log('selectRole function available:', typeof window.selectRole);
+// selectRole function is now defined at the top of the file for immediate availability
 
 function switchRole() {
     if (confirm('Switch to a different role? This will reload the app.')) {
@@ -1460,10 +1512,7 @@ async function deleteItem(itemId) {
 window.deleteItem = deleteItem;
 
 // ========== NEW STOCK TAKE WORKFLOW ==========
-// Initialize these at the top level to avoid initialization errors
-let currentStockTake = null;
-let currentBinLocation = null;
-let currentBinItems = [];
+// Note: currentStockTake, currentBinLocation, and currentBinItems are already declared at the top of the file
 
 async function checkActiveStockTake() {
     // This will be called when stock take tab is opened

@@ -26,15 +26,15 @@ fi
 
 # Commit changes
 echo "💾 Committing changes..."
-git commit -m "Fix SQL error and add QR code scanning
+git commit -m "Fix role selection buttons and duplicate variable declarations
 
-- Fixed SQL query error: Changed w.warehouse_id to w.id as warehouse_id in bin-locations lookup
-- Added QR code scanning functionality using html5-qrcode library
-- Added camera button (📷) to bin location inputs (counter and manager modes)
-- Added camera button (📷) to item code input
-- QR scanner opens in modal with camera view
-- Automatically triggers appropriate handler after successful scan
-- Works on mobile devices with back camera support"
+- Fixed duplicate variable declarations (currentStockTake, currentBinLocation, currentBinItems) that prevented JavaScript from loading
+- Fixed role selection buttons not working - added pointer-events: none to child elements
+- Added multiple event listeners (click, mousedown, touchstart) for better compatibility
+- Changed buttons to use IDs instead of data attributes for more reliable selection
+- Added comprehensive console logging for debugging
+- Buttons now properly transition from role selection to app interface
+- Tested and verified: Counter and Manager buttons both work correctly"
 
 # Push to GitHub
 echo "🚀 Pushing to GitHub..."
