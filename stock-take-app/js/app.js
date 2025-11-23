@@ -34,8 +34,13 @@ document.addEventListener('DOMContentLoaded', () => {
         loadItems();
     }
     
-    // Check for active stock take
-    checkActiveStockTake();
+    // Initialize stock take status (but don't call checkActiveStockTake here as it may cause initialization errors)
+    // Status will be updated when switching to stock take tab
+    setTimeout(() => {
+        if (document.getElementById('stocktakeTab')?.classList.contains('active')) {
+            updateStockTakeStatus();
+        }
+    }, 100);
 });
 
 /**
@@ -1270,13 +1275,18 @@ async function deleteItem(itemId) {
 window.deleteItem = deleteItem;
 
 // ========== NEW STOCK TAKE WORKFLOW ==========
+// Initialize these at the top level to avoid initialization errors
 let currentStockTake = null;
 let currentBinLocation = null;
 let currentBinItems = [];
 
 async function checkActiveStockTake() {
     // This will be called when stock take tab is opened
-    // For now, just initialize
+    // Ensure variables are initialized
+    if (typeof currentStockTake === 'undefined') {
+        currentStockTake = null;
+    }
+    // Status will be updated by updateStockTakeStatus() when tab is shown
 }
 
 function updateWarehousesForOpenStockTake() {
@@ -1399,6 +1409,11 @@ async function closeStockTake() {
 window.closeStockTake = closeStockTake;
 
 function updateStockTakeStatus() {
+    // Ensure currentStockTake is defined (should always be, but check for safety)
+    if (typeof currentStockTake === 'undefined') {
+        currentStockTake = null;
+    }
+    
     const statusBox = document.getElementById('stockTakeStatus');
     const openBtn = document.getElementById('openStockTakeBtn');
     const closeBtn = document.getElementById('closeStockTakeBtn');
@@ -1406,9 +1421,11 @@ function updateStockTakeStatus() {
     const itemSection = document.getElementById('itemScanSection');
     const binItemsSection = document.getElementById('binItemsSection');
     
+    if (!statusBox) return; // Exit if elements don't exist yet
+    
     if (currentStockTake) {
         statusBox.innerHTML = `
-            <p><strong>Stock Take Open</strong></p>
+            <p><strong>✅ Stock Take Open</strong></p>
             <p>Company: ${escapeHtml(currentStockTake.company_name)}</p>
             <p>Warehouse: ${escapeHtml(currentStockTake.warehouse_name)}</p>
             <p>Opened: ${formatDate(currentStockTake.opened_at)}</p>
@@ -1416,7 +1433,15 @@ function updateStockTakeStatus() {
         statusBox.className = 'status-box success';
         openBtn.style.display = 'none';
         closeBtn.style.display = 'inline-block';
-        binSection.style.display = 'block';
+        
+        // Show scanning sections
+        if (binSection) binSection.style.display = 'block';
+        
+        // Focus on bin location input for immediate scanning
+        setTimeout(() => {
+            const binInput = document.getElementById('binLocationInput');
+            if (binInput) binInput.focus();
+        }, 100);
     } else {
         statusBox.innerHTML = '<p>No stock take open</p>';
         statusBox.className = 'status-box';
@@ -1458,12 +1483,21 @@ async function handleBinLocationScan() {
         document.getElementById('currentBinLocation').style.display = 'block';
         document.getElementById('clearBinBtn').style.display = 'inline-block';
         
-        // Show item scan section
-        document.getElementById('itemScanSection').style.display = 'block';
-        document.getElementById('binItemsSection').style.display = 'block';
+        // Show item scan section and bin items section
+        const itemSection = document.getElementById('itemScanSection');
+        const binItemsSection = document.getElementById('binItemsSection');
+        if (itemSection) itemSection.style.display = 'block';
+        if (binItemsSection) binItemsSection.style.display = 'block';
         
-        // Focus on item code input
-        document.getElementById('itemCodeInput').focus();
+        // Scroll to item scan section
+        setTimeout(() => {
+            if (itemSection) {
+                itemSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // Focus on item code input
+                const itemCodeInput = document.getElementById('itemCodeInput');
+                if (itemCodeInput) itemCodeInput.focus();
+            }
+        }, 300);
         
         // Load items for this bin
         loadBinItems();
@@ -1688,6 +1722,14 @@ showTab = function(tabName, clickedElement) {
     originalShowTab(tabName, clickedElement);
     
     if (tabName === 'stocktake') {
+        // Ensure variables are initialized
+        if (typeof currentStockTake === 'undefined') {
+            currentStockTake = null;
+        }
+        
+        // Update status display
+        updateStockTakeStatus();
+        
         // Try to load active stock take if we have company/warehouse selected
         const companyId = document.getElementById('openStockTakeCompany')?.value;
         const warehouseId = document.getElementById('openStockTakeWarehouse')?.value;

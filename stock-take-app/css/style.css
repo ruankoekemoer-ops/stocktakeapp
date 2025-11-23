@@ -322,6 +322,31 @@ textarea.form-control {
     background: #c82333;
 }
 
+.btn-success {
+    background: #28a745;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #218838;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+}
+
+.btn-link {
+    background: none;
+    border: none;
+    color: #667eea;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.btn-link:hover {
+    color: #764ba2;
+}
+
 .spinner {
     display: inline-block;
     animation: spin 1s linear infinite;
@@ -634,4 +659,93 @@ textarea.form-control {
         gap: 1rem;
         align-items: stretch;
     }
+}
+
+/* Scanning Interface Styles */
+.scanning-section {
+    background: #f8f9fa;
+    border: 2px solid #667eea;
+    border-radius: 12px;
+    padding: 2rem;
+    margin-top: 1.5rem;
+}
+
+.scanning-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.scan-input-large {
+    margin-bottom: 1.5rem;
+}
+
+.scan-label {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #333;
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.scan-hint {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    font-style: italic;
+}
+
+.scan-input {
+    font-size: 1.2rem;
+    padding: 1rem;
+    border: 3px solid #667eea;
+    border-radius: 8px;
+    width: 100%;
+    margin-bottom: 1rem;
+}
+
+.scan-input:focus {
+    outline: none;
+    border-color: #764ba2;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+}
+
+.input-with-button-large {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.input-with-button-large .scan-input {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+.btn-large {
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+    min-width: 120px;
+}
+
+.button-group-center {
+    display: flex;
+    justify-content: center;
+    margin-top: 1.5rem;
+}
+
+.current-bin-box {
+    background: #d4edda;
+    border: 2px solid #28a745;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.current-bin-box h3 {
+    color: #155724;
+    margin-bottom: 0.5rem;
+}
+
+.current-bin-box p {
+    color: #155724;
+    margin: 0;
 }
