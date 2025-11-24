@@ -8,9 +8,15 @@
  * Then set apiUrl to: 'https://stock-take-api.your-subdomain.workers.dev/api'
  */
 
+const BASE_PATH = (function() {
+    const path = window.location.pathname || '/';
+    return path.startsWith('/stocktakeapp') ? '/stocktakeapp' : '';
+})();
+
 const CONFIG = {
     // API server URL - Connected to Cloudflare Worker
-    apiUrl: 'https://stock-take-api.rkoekemoer.workers.dev/api',
+    apiUrl: `${window.location.origin}${BASE_PATH}/api`,
+    basePath: BASE_PATH,
     
     // Microsoft Authentication Configuration
     // IMPORTANT: Register your app at https://portal.azure.com

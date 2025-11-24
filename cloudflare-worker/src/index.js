@@ -15,7 +15,13 @@ try {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const path = url.pathname;
+    const rawPath = url.pathname;
+    const basePath = '/stocktakeapp';
+    const servePath = rawPath.startsWith(basePath) ? rawPath.slice(basePath.length) || '/' : rawPath;
+    if (servePath === '/' && rawPath === basePath) {
+      return Response.redirect(`${basePath}/`, 301);
+    }
+    const path = rawPath.startsWith(basePath) ? servePath : rawPath;
 
     // CORS headers for all responses
     const corsHeaders = {

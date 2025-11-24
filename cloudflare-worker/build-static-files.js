@@ -18,10 +18,10 @@ const styleCss = fs.readFileSync(path.join(stockTakeAppDir, 'css', 'style.css'),
 
 // Update HTML to use absolute paths
 const indexHtmlFixed = indexHtml
-  .replace('href="css/style.css"', 'href="/css/style.css"')
-  .replace('src="js/config.js"', 'src="/js/config.js"')
-  .replace('src="js/auth.js"', 'src="/js/auth.js"')
-  .replace('src="js/app.js"', 'src="/js/app.js"');
+  .replace('href="css/style.css"', 'href="./css/style.css"')
+  .replace('src="js/config.js"', 'src="./js/config.js"')
+  .replace('src="js/auth.js"', 'src="./js/auth.js"')
+  .replace('src="js/app.js"', 'src="./js/app.js"');
 
 // Generate config.js that uses same domain
 const configJs = `/**
@@ -29,9 +29,14 @@ const configJs = `/**
  * Uses same domain as frontend - no CORS issues!
  */
 
+const BASE_PATH = (function() {
+    const path = window.location.pathname || '/';
+    return path.startsWith('/stocktakeapp') ? '/stocktakeapp' : '';
+})();
+
 const CONFIG = {
-    // API server URL - Same domain as frontend
-    apiUrl: window.location.origin + '/api',
+    apiUrl: window.location.origin + BASE_PATH + '/api',
+    basePath: BASE_PATH,
 };
 
 // Make available globally
