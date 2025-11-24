@@ -142,20 +142,12 @@
                                 <h3>Current Bin: <span id="currentBinCode"></span></h3>
                                 <p id="currentBinInfo"></p>
                             </div>
-                            <div class="scanning-container">
+                            <div class="scanning-container" id="binLocationInputRow">
                                 <div class="scan-input-large">
                                     <label for="binLocationInput" class="scan-label">Bin Location Code</label>
                                     <p class="scan-hint">Scan QR code or type bin code</p>
                                     <div class="input-with-button-large">
-                                        <input 
-                                            type="text" 
-                                            id="binLocationInput" 
-                                            class="form-control scan-input" 
-                                            placeholder="Scan or enter bin code..."
-                                            onkeypress="if(event.key==='Enter') handleBinLocationScan()"
-                                            autocomplete="off"
-                                            autofocus
-                                        >
+                                        <input type="text" id="binLocationInput" class="form-control scan-input" placeholder="Scan or enter bin code..." onkeypress="if(event.key==='Enter') handleBinLocationScan()" autocomplete="off" autofocus>
                                         <button onclick="startQRScan('binLocationInput', handleBinLocationScan)" class="btn btn-secondary btn-large" title="Scan QR Code">Scan</button>
                                         <button onclick="handleBinLocationScan()" class="btn btn-primary btn-large">Scan</button>
                                     </div>
@@ -223,7 +215,14 @@
                         <!-- Items in Current Bin -->
                         <section class="card scanning-section" id="binItemsSection" style="display: none;">
                             <div class="card-header">
-                                <h2 class="card-title">Items in Current Bin</h2>
+                                <div>
+                                    <h2 class="card-title">Items in Current Bin</h2>
+                                    <p class="card-subtitle" id="currentBinSummary"></p>
+                                </div>
+                                <div class="card-header-actions">
+                                    <span id="binItemsLineCount" class="line-count-badge">Lines counted: 0</span>
+                                    <button onclick="clearBinLocation()" class="btn btn-secondary btn-small" id="clearBinShortcut" style="display: none;">Change Bin</button>
+                                </div>
                             </div>
                             <div id="binItemsList" class="items-list"></div>
                             <div id="noBinItems" class="no-items" style="display: none;">No items added yet. Scan items above.</div>

@@ -108,6 +108,16 @@ if (typeof window !== 'undefined') {
     console.log('selectRole function registered on window');
 }
 
+function updateBinSummary() {
+    const summary = document.getElementById('currentBinSummary');
+    if (!summary) return;
+    if (!currentBinLocation) {
+        summary.textContent = '';
+    } else {
+        summary.textContent = `${currentBinLocation.bin_code} • ${currentBinLocation.warehouse_name || ''}`.trim();
+    }
+}
+
 function showRoleSelectionScreen() {
     const roleScreen = document.getElementById('roleSelectionScreen');
     const mainApp = document.getElementById('mainApp');
@@ -397,11 +407,17 @@ function goHome() {
         const binLocation = document.getElementById('binLocationSection');
         const itemScan = document.getElementById('itemScanSection');
         const binItems = document.getElementById('binItemsSection');
+        const binLocationInputRow = document.getElementById('binLocationInputRow');
+        const summary = document.getElementById('currentBinSummary');
         
         if (counterStart) counterStart.style.display = 'block';
         if (binLocation) binLocation.style.display = 'none';
         if (itemScan) itemScan.style.display = 'none';
         if (binItems) binItems.style.display = 'none';
+        if (binLocationInputRow) binLocationInputRow.style.display = 'flex';
+        if (summary) summary.textContent = '';
+        const clearShortcut = document.getElementById('clearBinShortcut');
+        if (clearShortcut) clearShortcut.style.display = 'none';
         
         // Clear inputs
         const counterBinInput = document.getElementById('counterBinLocationInput');
@@ -2632,6 +2648,7 @@ function updateStockTakeStatus() {
     const binSection = document.getElementById('binLocationSection');
     const itemSection = document.getElementById('itemScanSection');
     const binItemsSection = document.getElementById('binItemsSection');
+    const binInputRow = document.getElementById('binLocationInputRow');
     
     // Only update manager section if it exists (manager mode)
     if (statusBox && openBtn && closeBtn) {
@@ -2655,14 +2672,14 @@ function updateStockTakeStatus() {
     
     // Handle scanning sections visibility
     if (currentStockTake) {
-        // Show scanning sections - ALWAYS show bin location section when stock take is open
-        if (binSection) {
-            binSection.style.display = 'block';
-            binSection.style.visibility = 'visible';
+        if (binSection) binSection.style.display = currentBinLocation ? 'none' : 'block';
+        if (binInputRow) binInputRow.style.display = currentBinLocation ? 'none' : 'block';
+        const clearShortcut = document.getElementById('clearBinShortcut');
+        if (clearShortcut) {
+            clearShortcut.style.display = currentBinLocation ? 'inline-flex' : 'none';
         }
-        
         // Scroll to bin location section to make it visible (manager mode)
-        if (currentRole === 'manager') {
+        if (currentRole === 'manager' && !currentBinLocation) {
             setTimeout(() => {
                 if (binSection) {
                     binSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -2678,8 +2695,11 @@ function updateStockTakeStatus() {
     } else {
         // Hide scanning sections when no stock take
         if (binSection) binSection.style.display = 'none';
+        if (binInputRow) binInputRow.style.display = 'block';
         if (itemSection) itemSection.style.display = 'none';
         if (binItemsSection) binItemsSection.style.display = 'none';
+        const clearShortcut = document.getElementById('clearBinShortcut');
+        if (clearShortcut) clearShortcut.style.display = 'none';
     }
 }
 
@@ -2819,10 +2839,16 @@ async function handleCounterBinLocationScan() {
         document.getElementById('currentBinInfo').textContent = `${binLocation.warehouse_name} - ${binLocation.company_name}`;
         document.getElementById('currentBinLocation').style.display = 'block';
         document.getElementById('clearBinBtn').style.display = 'inline-block';
+        const binInputRow = document.getElementById('binLocationInputRow');
+        if (binInputRow) binInputRow.style.display = 'none';
+        const binSection = document.getElementById('binLocationSection');
+        if (binSection) binSection.style.display = 'none';
+        const clearShortcut = document.getElementById('clearBinShortcut');
+        if (clearShortcut) clearShortcut.style.display = 'inline-flex';
+        updateBinSummary();
         
         // Hide counter start section, show scanning sections
         document.getElementById('counterStartSection').style.display = 'none';
-        document.getElementById('binLocationSection').style.display = 'block';
         
         // Show item scan section and bin items section
         const itemSection = document.getElementById('itemScanSection');
@@ -2889,6 +2915,13 @@ async function handleBinLocationScan() {
         document.getElementById('currentBinInfo').textContent = `${binLocation.warehouse_name} - ${binLocation.company_name}`;
         document.getElementById('currentBinLocation').style.display = 'block';
         document.getElementById('clearBinBtn').style.display = 'inline-block';
+        const binInputRow = document.getElementById('binLocationInputRow');
+        if (binInputRow) binInputRow.style.display = 'none';
+        const clearShortcut = document.getElementById('clearBinShortcut');
+        if (clearShortcut) clearShortcut.style.display = 'inline-flex';
+        const binSectionManager = document.getElementById('binLocationSection');
+        if (binSectionManager) binSectionManager.style.display = 'none';
+        updateBinSummary();
         
         // Show item scan section and bin items section
         const itemSection = document.getElementById('itemScanSection');
@@ -2922,14 +2955,37 @@ function clearBinLocation() {
         currentBinLocation = null;
         currentBinItems = [];
         
-        document.getElementById('currentBinLocation').style.display = 'none';
-        document.getElementById('clearBinBtn').style.display = 'none';
-        document.getElementById('itemScanSection').style.display = 'none';
-        document.getElementById('binItemsSection').style.display = 'none';
-        document.getElementById('binItemsList').innerHTML = '';
-        document.getElementById('itemCodeInput').value = '';
-        document.getElementById('itemNameInput').value = '';
-        document.getElementById('itemQuantityInput').value = '0';
+        const currentInfo = document.getElementById('currentBinLocation');
+        if (currentInfo) currentInfo.style.display = 'none';
+        const clearBtn = document.getElementById('clearBinBtn');
+        if (clearBtn) clearBtn.style.display = 'none';
+        const binInputRow = document.getElementById('binLocationInputRow');
+        if (binInputRow) binInputRow.style.display = 'flex';
+        const binSection = document.getElementById('binLocationSection');
+        if (binSection && currentRole === 'manager') binSection.style.display = 'block';
+        const counterStart = document.getElementById('counterStartSection');
+        if (counterStart && currentRole === 'counter') counterStart.style.display = 'block';
+        const clearShortcut = document.getElementById('clearBinShortcut');
+        if (clearShortcut) clearShortcut.style.display = 'none';
+        const itemSection = document.getElementById('itemScanSection');
+        if (itemSection) itemSection.style.display = 'none';
+        const binItemsSection = document.getElementById('binItemsSection');
+        if (binItemsSection) binItemsSection.style.display = 'none';
+        const binItemsList = document.getElementById('binItemsList');
+        if (binItemsList) binItemsList.innerHTML = '';
+        const itemCodeInput = document.getElementById('itemCodeInput');
+        if (itemCodeInput) itemCodeInput.value = '';
+        const itemNameInput = document.getElementById('itemNameInput');
+        if (itemNameInput) itemNameInput.value = '';
+        const itemQuantityInput = document.getElementById('itemQuantityInput');
+        if (itemQuantityInput) itemQuantityInput.value = '1';
+        if (document.getElementById('binItemsLineCount')) {
+            document.getElementById('binItemsLineCount').textContent = 'Lines counted: 0';
+        }
+        const binInput = document.getElementById('binLocationInput');
+        if (binInput) binInput.value = '';
+        updateBinSummary();
+        updateStockTakeStatus();
     }
 }
 window.clearBinLocation = clearBinLocation;
@@ -3075,10 +3131,12 @@ async function loadBinItems() {
         
         const listEl = document.getElementById('binItemsList');
         const noItemsEl = document.getElementById('noBinItems');
+        const lineCount = document.getElementById('binItemsLineCount');
         
         if (currentBinItems.length === 0) {
             listEl.innerHTML = '';
             noItemsEl.style.display = 'block';
+            if (lineCount) lineCount.textContent = 'Lines counted: 0';
         } else {
             noItemsEl.style.display = 'none';
             listEl.innerHTML = currentBinItems.map(item => `
@@ -3093,6 +3151,7 @@ async function loadBinItems() {
                     </div>
                 </div>
             `).join('');
+            if (lineCount) lineCount.textContent = `Lines counted: ${currentBinItems.length}`;
         }
     } catch (error) {
         console.error('Error loading bin items:', error);
