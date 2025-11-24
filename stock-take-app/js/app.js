@@ -16,6 +16,9 @@ let currentBinLocation = null;
 let currentBinItems = [];
 let qrScanner = null; // QR Code scanner instance
 
+// System Admin password (defined early so it's available everywhere)
+const ADMIN_PASSWORD = 'admin123'; // TODO: Change this to a secure password or use environment variable
+
 // Define selectRole function immediately so it's available for onclick handlers
 function selectRole(role) {
     try {
@@ -156,10 +159,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     blockAccessUntilLogin();
                 }
             } else {
-                // User is authenticated, show role selection
+                // User is authenticated, check if they're a manager
+                await checkUserManagerStatus();
+                
+                // Show role selection
                 if (roleScreen) {
                     roleScreen.style.display = 'flex';
                 }
+                
+                // Add authenticated class to body for CSS
+                document.body.classList.add('authenticated');
             }
         } else {
             // Auth not loaded yet, wait a bit more
@@ -176,6 +185,9 @@ function initializeApp(role) {
     try {
         console.log('Initializing app with role:', role);
         currentRole = role;
+        
+        // Ensure authenticated class is on body
+        document.body.classList.add('authenticated');
         
         // Update UI based on role
         setRole(role, false); // Don't save (already saved)
@@ -214,6 +226,88 @@ function initializeApp(role) {
 
 // selectRole function is now defined at the top of the file for immediate availability
 
+// Check if current user is a manager
+async function checkUserManagerStatus() {
+    try {
+        // Get current user email
+        let userEmail = null;
+        if (typeof getCurrentUser === 'function') {
+            const user = getCurrentUser();
+            if (user && user.email) {
+                userEmail = user.email;
+            }
+        }
+        
+        // Also check sessionStorage for email auth
+        if (!userEmail) {
+            userEmail = sessionStorage.getItem('loggedInUserEmail');
+        }
+        
+        if (!userEmail) {
+            console.log('No user email found, hiding manager option');
+            hideManagerOption();
+            return;
+        }
+        
+        // Load all managers
+        const managersResponse = await fetch(`${CONFIG.apiUrl}/managers`);
+        if (!managersResponse.ok) {
+            console.log('Failed to load managers, hiding manager option');
+            hideManagerOption();
+            return;
+        }
+        
+        const allManagers = await managersResponse.json();
+        
+        // Find manager with matching email
+        const matchingManager = allManagers.find(m => 
+            m.email && m.email.toLowerCase() === userEmail.toLowerCase()
+        );
+        
+        if (!matchingManager) {
+            console.log('No manager found with email:', userEmail);
+            hideManagerOption();
+            return;
+        }
+        
+        // Check if this manager has any company access
+        const accessResponse = await fetch(`${CONFIG.apiUrl}/manager-company-access?manager_id=${matchingManager.id}`);
+        if (!accessResponse.ok) {
+            console.log('Failed to check manager access, hiding manager option');
+            hideManagerOption();
+            return;
+        }
+        
+        const accessList = await accessResponse.json();
+        
+        if (accessList && accessList.length > 0) {
+            console.log('User is a manager, showing manager option');
+            showManagerOption();
+        } else {
+            console.log('Manager has no company access, hiding manager option');
+            hideManagerOption();
+        }
+    } catch (error) {
+        console.error('Error checking manager status:', error);
+        // On error, hide manager option for security
+        hideManagerOption();
+    }
+}
+
+function hideManagerOption() {
+    const managerBtn = document.getElementById('managerBtn');
+    if (managerBtn) {
+        managerBtn.style.display = 'none';
+    }
+}
+
+function showManagerOption() {
+    const managerBtn = document.getElementById('managerBtn');
+    if (managerBtn) {
+        managerBtn.style.display = 'flex';
+    }
+}
+
 function switchRole() {
     // Clear role and show role selection screen
     localStorage.removeItem('stockTakeRole');
@@ -223,6 +317,9 @@ function switchRole() {
     
     if (roleScreen) roleScreen.style.display = 'flex';
     if (mainApp) mainApp.style.display = 'none';
+    
+    // Re-check manager status when switching roles
+    checkUserManagerStatus();
 }
 window.switchRole = switchRole;
 
@@ -322,6 +419,14 @@ function setRole(role, saveToStorage = true) {
         if (counterStartSection) counterStartSection.style.display = 'none';
         if (managerStockTakeSection) managerStockTakeSection.style.display = 'block';
         
+        // Also hide the scanning sections for manager mode
+        const binLocationSection = document.getElementById('binLocationSection');
+        const itemScanSection = document.getElementById('itemScanSection');
+        const binItemsSection = document.getElementById('binItemsSection');
+        if (binLocationSection) binLocationSection.style.display = 'none';
+        if (itemScanSection) itemScanSection.style.display = 'none';
+        if (binItemsSection) binItemsSection.style.display = 'none';
+        
         // Remove counter switch button if it exists
         const counterSwitchBtn = document.getElementById('counterSwitchRoleBtn');
         if (counterSwitchBtn) counterSwitchBtn.remove();
@@ -358,7 +463,8 @@ function buildNavigation(role) {
         const mainContent = document.querySelector('.main-content');
         if (mainContent) mainContent.style.marginLeft = '0';
         
-        return; // Exit early - no navigation for counter
+        // System Admin button will be shown in bottom left (handled by CSS)
+        return;
     } else {
         // Manager sees all navigation
         navItems.push(
@@ -371,7 +477,10 @@ function buildNavigation(role) {
         // Show sidebar and mobile nav for manager
         const sidebar = document.getElementById('sidebar');
         const mobileNav = document.getElementById('mobileNav');
-        if (sidebar) sidebar.style.display = 'block';
+        if (sidebar) {
+            sidebar.style.display = 'block';
+            sidebar.style.width = ''; // Reset to default
+        }
         if (mobileNav) mobileNav.style.display = 'block';
         
         // Restore main content margin
@@ -390,19 +499,7 @@ function buildNavigation(role) {
         `).join('');
     }
     
-    // Update mobile navigation
-    const mobileNav = document.getElementById('mobileNav');
-    if (mobileNav) {
-        const mobileNavItems = mobileNav.querySelector('.mobile-nav-items');
-        if (mobileNavItems) {
-            mobileNavItems.innerHTML = navItems.map(item => `
-                <div class="mobile-nav-item" onclick="showTab('${item.id}')" data-tab="${item.id}">
-                    <span class="mobile-nav-icon">${item.icon}</span>
-                    <span>${item.label}</span>
-                </div>
-            `).join('');
-        }
-    }
+    // System Admin button visibility is handled by CSS based on .authenticated class
 }
 
 function showTab(tabName, clickedElement) {
@@ -416,13 +513,17 @@ function showTab(tabName, clickedElement) {
         return;
     }
     
-    // Hide all tabs
-    document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+    // Hide ALL tabs completely
+    document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+        tab.style.display = 'none';
+    });
     
-    // Show selected tab
+    // Show ONLY the selected tab
     const tabElement = document.getElementById(tabName + 'Tab');
     if (tabElement) {
         tabElement.classList.add('active');
+        tabElement.style.display = 'block';
     }
     
     // Update navigation active state
@@ -433,12 +534,6 @@ function showTab(tabName, clickedElement) {
         }
     });
     
-    document.querySelectorAll('.mobile-nav-item').forEach(item => {
-        item.classList.remove('active');
-        if (item.dataset.tab === tabName) {
-            item.classList.add('active');
-        }
-    });
     
     // Update page title
     const pageTitle = document.getElementById('pageTitle');
@@ -447,7 +542,8 @@ function showTab(tabName, clickedElement) {
             'stocktake': 'Stock Take',
             'openStockTakes': 'Open Stock Takes',
             'setup': 'Setup',
-            'view': 'View Items'
+            'view': 'View Items',
+            'systemAdmin': 'System Admin'
         };
         pageTitle.textContent = titles[tabName] || 'Stock Take';
     } else {
@@ -462,7 +558,11 @@ function showTab(tabName, clickedElement) {
     // Load data when switching tabs
     if (tabName === 'setup') {
         loadCompanies();
-        // Don't auto-load other data - wait for company selection
+        loadWarehouses();
+        // If a company is already selected, load its data
+        if (selectedCompanyId) {
+            onCompanySelected();
+        }
     } else if (tabName === 'stocktake') {
         // Ensure managers are loaded for validation
         if (managers.length === 0) {
@@ -482,9 +582,121 @@ function showTab(tabName, clickedElement) {
         }
     } else if (tabName === 'openStockTakes') {
         loadOpenStockTakes();
+    } else if (tabName === 'systemAdmin') {
+        // Update page title
+        if (pageTitle) {
+            pageTitle.textContent = 'System Admin';
+        }
+        
+        // Check if already authenticated
+        if (!isAdminAuthenticated()) {
+            showAdminLogin();
+            // Focus password input and ensure button works after a short delay
+            setTimeout(() => {
+                const passwordInput = document.getElementById('adminPassword');
+                const accessBtn = document.getElementById('accessAdminBtn');
+                
+                if (passwordInput) {
+                    passwordInput.focus();
+                    // Handle Enter key
+                    passwordInput.addEventListener('keypress', function(e) {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            checkAdminPassword();
+                        }
+                    });
+                }
+                
+                // Ensure button click works
+                if (accessBtn) {
+                    // Remove any existing listeners
+                    const newBtn = accessBtn.cloneNode(true);
+                    accessBtn.parentNode.replaceChild(newBtn, accessBtn);
+                    
+                    // Add click handler
+                    newBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('Button clicked - calling checkAdminPassword');
+                        checkAdminPassword();
+                    });
+                    
+                    // Also ensure onclick works
+                    newBtn.onclick = function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('Button onclick - calling checkAdminPassword');
+                        checkAdminPassword();
+                    };
+                }
+            }, 200);
+        } else {
+            showAdminContent();
+        }
     }
 }
 window.showTab = showTab;
+
+// Show setup page
+function showSetupPage(pageName) {
+    // Hide ALL setup pages first
+    document.querySelectorAll('.setup-page').forEach(page => {
+        page.classList.remove('active');
+        page.style.display = 'none';
+    });
+    
+    // Show ONLY the selected page
+    const pageElement = document.getElementById(`setupPage-${pageName}`);
+    if (pageElement) {
+        pageElement.classList.add('active');
+        pageElement.style.display = 'block';
+    }
+    
+    // Update navigation active state
+    document.querySelectorAll('.setup-nav-item').forEach(item => {
+        item.classList.remove('active');
+        if (item.dataset.setupPage === pageName) {
+            item.classList.add('active');
+        }
+    });
+    
+    // Load data for the page
+    switch(pageName) {
+        case 'companies':
+            loadCompanies();
+            break;
+        case 'warehouses':
+            loadWarehousesForSetup();
+            break;
+        case 'binLocations':
+            loadBinLocationsForSetup();
+            break;
+        case 'managers':
+            loadManagersForSetup();
+            break;
+    }
+}
+window.showSetupPage = showSetupPage;
+
+// Update filter dropdowns for setup pages
+function updateSetupFilterDropdowns() {
+    // Update company filters
+    const companyFilters = ['warehouseCompanyFilter', 'binLocationCompanyFilter', 'managerCompanyFilter'];
+    companyFilters.forEach(filterId => {
+        const filter = document.getElementById(filterId);
+        if (filter) {
+            const currentValue = filter.value;
+            filter.innerHTML = '<option value="">All Companies</option>' + 
+                companies.map(c => `<option value="${c.id}">${escapeHtml(c.company_name)}</option>`).join('');
+            if (currentValue) filter.value = currentValue;
+        }
+    });
+    
+    // Update warehouse filters (will be updated when company is selected)
+    updateBinLocationWarehouseFilter();
+    updateManagerWarehouseFilter();
+}
+window.updateSetupFilterDropdowns = updateSetupFilterDropdowns;
 
 // ========== COMPANY SELECTION & SETTINGS ==========
 let selectedCompanyId = null;
@@ -493,15 +705,12 @@ function onCompanySelected() {
     const companyId = document.getElementById('selectedCompany').value;
     selectedCompanyId = companyId ? parseInt(companyId) : null;
     
+    const companyDetailsSection = document.getElementById('companyDetailsSection');
+    
     if (selectedCompanyId) {
         // Show company details section
-        document.getElementById('companyDetailsSection').style.display = 'block';
-        document.getElementById('allCompaniesSection').style.display = 'none';
-        
-        // Update company name in header
-        const company = companies.find(c => c.id === selectedCompanyId);
-        if (company) {
-            document.getElementById('selectedCompanyName').textContent = company.company_name + ' - Setup';
+        if (companyDetailsSection) {
+            companyDetailsSection.style.display = 'block';
         }
         
         // Load all data for this company
@@ -509,10 +718,10 @@ function onCompanySelected() {
         loadBinLocationsForCompany();
         loadManagersForCompany();
     } else {
-        // Show all companies list
-        document.getElementById('companyDetailsSection').style.display = 'none';
-        document.getElementById('allCompaniesSection').style.display = 'block';
-        loadCompanies();
+        // Hide company details section
+        if (companyDetailsSection) {
+            companyDetailsSection.style.display = 'none';
+        }
     }
 }
 window.onCompanySelected = onCompanySelected;
@@ -595,93 +804,123 @@ function openCompanyModal(id = null) {
 window.openCompanyModal = openCompanyModal;
 
 function openAddCompanyModal() {
-    document.getElementById('addCompanyModal').style.display = 'flex';
-    document.getElementById('addCompanyCode').value = '';
-    document.getElementById('addCompanyName').value = '';
+    const modal = document.getElementById('companyModal');
+    const form = document.getElementById('companyForm');
+    const title = document.getElementById('companyModalTitle');
+    
+    if (modal && form && title) {
+        title.textContent = 'Add Company';
+        form.reset();
+        // Remove any hidden ID field if it exists
+        const idField = document.getElementById('editCompanyId');
+        if (idField) idField.remove();
+        modal.style.display = 'flex';
+    }
 }
 window.openAddCompanyModal = openAddCompanyModal;
 
-function closeAddCompanyModal() {
-    document.getElementById('addCompanyModal').style.display = 'none';
+function closeCompanyModal() {
+    const modal = document.getElementById('companyModal');
+    if (modal) modal.style.display = 'none';
 }
-window.closeAddCompanyModal = closeAddCompanyModal;
+window.closeCompanyModal = closeCompanyModal;
+window.closeAddCompanyModal = closeCompanyModal; // Alias for backward compatibility
 
 function openEditCompanyModal(id) {
     const company = companies.find(c => c.id === id);
     if (!company) return;
     
-    document.getElementById('editCompanyId').value = id;
-    document.getElementById('editCompanyCode').value = company.company_code;
-    document.getElementById('editCompanyName').value = company.company_name;
-    document.getElementById('editCompanyModal').style.display = 'flex';
+    const modal = document.getElementById('companyModal');
+    const form = document.getElementById('companyForm');
+    const title = document.getElementById('companyModalTitle');
+    const companyName = document.getElementById('companyName');
+    
+    if (modal && form && title && companyName) {
+        title.textContent = 'Edit Company';
+        
+        // Add hidden ID field if it doesn't exist
+        let idField = document.getElementById('editCompanyId');
+        if (!idField) {
+            idField = document.createElement('input');
+            idField.type = 'hidden';
+            idField.id = 'editCompanyId';
+            form.appendChild(idField);
+        }
+        idField.value = id;
+        
+        companyName.value = company.company_name;
+        
+        // Set company code if field exists
+        const companyCode = document.getElementById('companyCode');
+        if (companyCode && company.company_code) {
+            companyCode.value = company.company_code;
+        }
+        
+        modal.style.display = 'flex';
+    }
 }
 window.openEditCompanyModal = openEditCompanyModal;
 
-function closeEditCompanyModal() {
-    document.getElementById('editCompanyModal').style.display = 'none';
-}
-window.closeEditCompanyModal = closeEditCompanyModal;
-
-async function handleAddCompany(event) {
+async function handleCompanySubmit(event) {
     event.preventDefault();
+    const idField = document.getElementById('editCompanyId');
+    const isEdit = idField && idField.value;
+    
+    const companyName = document.getElementById('companyName');
+    if (!companyName) {
+        showToast('Company name field not found', 'error', 3000);
+        return;
+    }
+    
     const formData = {
-        company_code: document.getElementById('addCompanyCode').value.trim(),
-        company_name: document.getElementById('addCompanyName').value.trim(),
+        company_name: companyName.value.trim(),
     };
     
+    // Add company_code if it exists (for backward compatibility)
+    const companyCode = document.getElementById('companyCode');
+    if (companyCode) {
+        formData.company_code = companyCode.value.trim();
+    }
+    
     try {
-        const response = await fetch(`${CONFIG.apiUrl}/companies`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(formData)
-        });
+        let response;
+        if (isEdit) {
+            response = await fetch(`${CONFIG.apiUrl}/companies/${idField.value}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            });
+        } else {
+            response = await fetch(`${CONFIG.apiUrl}/companies`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            });
+        }
         
-        if (!response.ok) throw new Error('Failed to save company');
+        if (!response.ok) throw new Error(isEdit ? 'Failed to update company' : 'Failed to save company');
         
         const result = await response.json();
-        showToast('Company created successfully!', 'success', 3000);
-        closeAddCompanyModal();
+        showToast(isEdit ? 'Company updated successfully!' : 'Company created successfully!', 'success', 3000);
+        closeCompanyModal();
         await loadCompanies();
-        // Auto-select the newly created company
-        if (result.item && result.item.id) {
-            selectCompany(result.item.id);
-        }
-    } catch (error) {
-        showToast(error.message, 'error', 6000);
-    }
-}
-window.handleAddCompany = handleAddCompany;
-
-async function handleEditCompany(event) {
-    event.preventDefault();
-    const id = document.getElementById('editCompanyId').value;
-    const formData = {
-        company_code: document.getElementById('editCompanyCode').value.trim(),
-        company_name: document.getElementById('editCompanyName').value.trim(),
-    };
-    
-    try {
-        const response = await fetch(`${CONFIG.apiUrl}/companies/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(formData)
-        });
         
-        if (!response.ok) throw new Error('Failed to update company');
-        
-        showToast('Company updated successfully!', 'success', 3000);
-        closeEditCompanyModal();
-        await loadCompanies();
-        // Keep the same company selected if it still exists
-        if (selectedCompanyId) {
-            document.getElementById('selectedCompany').value = selectedCompanyId;
+        if (!isEdit && result.item && result.item.id) {
+            // Auto-select the newly created company
+            selectCompanyInDropdown(result.item.id);
+        } else if (isEdit && selectedCompanyId) {
+            // Keep the same company selected if editing
+            const companySelect = document.getElementById('selectedCompany');
+            if (companySelect) {
+                companySelect.value = selectedCompanyId;
+            }
             onCompanySelected();
         }
     } catch (error) {
         showToast(error.message, 'error', 6000);
     }
 }
-window.handleEditCompany = handleEditCompany;
+window.handleCompanySubmit = handleCompanySubmit;
 
 function editCompany(id) {
     openCompanyModal(id);
@@ -696,9 +935,12 @@ async function deleteCompany(id) {
         if (!response.ok) throw new Error('Failed to delete company');
         showToast('Company deleted successfully!', 'success', 3000);
         selectedCompanyId = null;
-        document.getElementById('selectedCompany').value = '';
+        const companySelect = document.getElementById('selectedCompany');
+        if (companySelect) {
+            companySelect.value = '';
+        }
         await loadCompanies();
-        onCompanySelected(); // This will show the all companies list
+        onCompanySelected(); // This will hide the company details section
     } catch (error) {
         showToast(error.message, 'error', 6000);
     }
@@ -735,28 +977,90 @@ async function loadWarehousesForCompany() {
                 listEl.innerHTML = companyWarehouses.map(w => `
                     <div class="item-card">
                         <div class="item-header">
-                            <h3>${escapeHtml(w.warehouse_name)}</h3>
-                            <span class="item-id">${escapeHtml(w.warehouse_code)}</span>
-                        </div>
-                        <div class="item-details">
-                            ${w.address ? `<div class="detail-item"><strong>Address:</strong> ${escapeHtml(w.address)}</div>` : ''}
-                        </div>
-                        <div class="item-actions">
-                            <button onclick="editWarehouse(${w.id})" class="btn btn-small">Edit</button>
-                            <button onclick="deleteWarehouse(${w.id})" class="btn btn-small btn-danger">Delete</button>
+                            <div>
+                                <h3>${escapeHtml(w.warehouse_name)}</h3>
+                                <p style="color: var(--text-muted); font-size: 0.875rem; margin: 0.25rem 0 0 0;">${escapeHtml(w.warehouse_code)}</p>
+                                ${w.address ? `<p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0.25rem 0 0 0;">${escapeHtml(w.address)}</p>` : ''}
+                            </div>
+                            <div class="item-actions">
+                                <button onclick="editWarehouse(${w.id})" class="btn btn-small">Edit</button>
+                                <button onclick="deleteWarehouse(${w.id})" class="btn btn-small btn-danger">Delete</button>
+                            </div>
                         </div>
                     </div>
                 `).join('');
             }
         }
         
-        // Update warehouse filter dropdowns
-        updateWarehouseFilterDropdowns();
+        // Update warehouse filter dropdowns for bin locations and managers
+        const binFilter = document.getElementById('binLocationWarehouseFilter');
+        const managerFilter = document.getElementById('managerWarehouseFilter');
+        
+        if (binFilter) {
+            const currentValue = binFilter.value;
+            binFilter.innerHTML = '<option value="">All Warehouses</option>' + 
+                companyWarehouses.map(w => `<option value="${w.id}">${escapeHtml(w.warehouse_name)}</option>`).join('');
+            if (currentValue) binFilter.value = currentValue;
+        }
+        
+        if (managerFilter) {
+            const currentValue = managerFilter.value;
+            managerFilter.innerHTML = '<option value="">All Warehouses</option>' + 
+                companyWarehouses.map(w => `<option value="${w.id}">${escapeHtml(w.warehouse_name)}</option>`).join('');
+            if (currentValue) managerFilter.value = currentValue;
+        }
     } catch (error) {
         console.error('Error loading warehouses for company:', error);
     }
 }
 window.loadWarehousesForCompany = loadWarehousesForCompany;
+
+// Load warehouses for setup page (with company filter)
+async function loadWarehousesForSetup() {
+    try {
+        const companyFilter = document.getElementById('warehouseCompanyFilter')?.value || '';
+        let url = `${CONFIG.apiUrl}/warehouses`;
+        if (companyFilter) {
+            url += `?company_id=${companyFilter}`;
+        }
+        
+        const response = await fetch(url);
+        const warehouseList = await response.json();
+        
+        const listEl = document.getElementById('warehousesList');
+        const noWarehousesEl = document.getElementById('noWarehouses');
+        
+        if (listEl) {
+            if (warehouseList.length === 0) {
+                listEl.innerHTML = '';
+                if (noWarehousesEl) noWarehousesEl.style.display = 'block';
+            } else {
+                if (noWarehousesEl) noWarehousesEl.style.display = 'none';
+                listEl.innerHTML = warehouseList.map(w => {
+                    const company = companies.find(c => c.id === w.company_id);
+                    return `
+                        <div class="item-card">
+                            <div class="item-header">
+                                <div>
+                                    <h3>${escapeHtml(w.warehouse_name)}</h3>
+                                    <p style="color: var(--text-muted); font-size: 0.875rem; margin: 0.25rem 0 0 0;">${escapeHtml(company ? company.company_name : 'N/A')}</p>
+                                </div>
+                                <span class="item-id">${escapeHtml(w.warehouse_code)}</span>
+                            </div>
+                            <div class="item-actions">
+                                <button onclick="editWarehouse(${w.id})" class="btn btn-small">Edit</button>
+                                <button onclick="deleteWarehouse(${w.id})" class="btn btn-small btn-danger">Delete</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+    } catch (error) {
+        console.error('Error loading warehouses for setup:', error);
+    }
+}
+window.loadWarehousesForSetup = loadWarehousesForSetup;
 
 function updateWarehouseDropdowns() {
     const selects = document.querySelectorAll('select[id*="Warehouse"], select[id*="warehouse"]');
@@ -812,25 +1116,35 @@ function openWarehouseModal(id = null) {
 window.openWarehouseModal = openWarehouseModal;
 
 function openAddWarehouseModal() {
-    const companySelect = document.getElementById('addWarehouseCompany');
-    companySelect.innerHTML = '<option value="">Select Company</option>' + 
-        companies.map(c => `<option value="${c.id}">${escapeHtml(c.company_name)}</option>`).join('');
+    const modal = document.getElementById('warehouseModal');
+    const form = document.getElementById('warehouseForm');
+    const title = document.getElementById('warehouseModalTitle');
     
-    // Pre-select the current company if one is selected
-    if (selectedCompanyId) {
-        companySelect.value = selectedCompanyId;
+    if (modal && form && title) {
+        title.textContent = 'Add Warehouse';
+        form.reset();
+        // Remove any hidden ID field if it exists
+        const idField = document.getElementById('editWarehouseId');
+        if (idField) idField.remove();
+        
+        // Pre-select the current company if one is selected (if there's a company field)
+        if (selectedCompanyId) {
+            const companyField = document.getElementById('warehouseCompany');
+            if (companyField) {
+                companyField.value = selectedCompanyId;
+            }
+        }
+        
+        modal.style.display = 'flex';
     }
-    
-    document.getElementById('addWarehouseCode').value = '';
-    document.getElementById('addWarehouseName').value = '';
-    document.getElementById('addWarehouseAddress').value = '';
-    document.getElementById('addWarehouseModal').style.display = 'flex';
 }
 window.openAddWarehouseModal = openAddWarehouseModal;
 
-function closeAddWarehouseModal() {
-    document.getElementById('addWarehouseModal').style.display = 'none';
+function closeWarehouseModal() {
+    const modal = document.getElementById('warehouseModal');
+    if (modal) modal.style.display = 'none';
 }
+window.closeWarehouseModal = closeWarehouseModal;
 window.closeAddWarehouseModal = closeAddWarehouseModal;
 
 function openEditWarehouseModal(id) {
@@ -850,10 +1164,6 @@ function openEditWarehouseModal(id) {
 }
 window.openEditWarehouseModal = openEditWarehouseModal;
 
-function closeEditWarehouseModal() {
-    document.getElementById('editWarehouseModal').style.display = 'none';
-}
-window.closeEditWarehouseModal = closeEditWarehouseModal;
 
 async function handleAddWarehouse(event) {
     event.preventDefault();
@@ -874,7 +1184,7 @@ async function handleAddWarehouse(event) {
         if (!response.ok) throw new Error('Failed to save warehouse');
         
         showToast('Warehouse created successfully!', 'success', 3000);
-        closeAddWarehouseModal();
+        closeWarehouseModal();
         await loadWarehouses();
         loadWarehousesForCompany();
         loadBinLocationsForCompany();
@@ -905,7 +1215,7 @@ async function handleEditWarehouse(event) {
         if (!response.ok) throw new Error('Failed to update warehouse');
         
         showToast('Warehouse updated successfully!', 'success', 3000);
-        closeEditWarehouseModal();
+        closeWarehouseModal();
         await loadWarehouses();
         loadWarehousesForCompany();
         loadBinLocationsForCompany();
@@ -992,24 +1302,24 @@ async function loadBinLocationsForCompany() {
                 if (noBinLocationsEl) noBinLocationsEl.style.display = 'block';
             } else {
                 if (noBinLocationsEl) noBinLocationsEl.style.display = 'none';
-                listEl.innerHTML = binLocations.map(b => `
-                    <div class="item-card">
-                        <div class="item-header">
-                            <h3>${escapeHtml(b.bin_code)}</h3>
-                            ${b.bin_name ? `<span class="item-id">${escapeHtml(b.bin_name)}</span>` : ''}
+                listEl.innerHTML = binLocations.map(b => {
+                    const warehouse = warehouses.find(w => w.id === b.warehouse_id);
+                    return `
+                        <div class="item-card">
+                            <div class="item-header">
+                                <div>
+                                    <h3>${escapeHtml(b.bin_code)}</h3>
+                                    <p style="color: var(--text-muted); font-size: 0.875rem; margin: 0.25rem 0 0 0;">${escapeHtml(warehouse ? warehouse.warehouse_name : 'N/A')}</p>
+                                    ${b.aisle ? `<p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0.25rem 0 0 0;">Aisle: ${escapeHtml(b.aisle)}</p>` : ''}
+                                </div>
+                                <div class="item-actions">
+                                    <button onclick="editBinLocation(${b.id})" class="btn btn-small">Edit</button>
+                                    <button onclick="deleteBinLocation(${b.id})" class="btn btn-small btn-danger">Delete</button>
+                                </div>
+                            </div>
                         </div>
-                        <div class="item-details">
-                            <div class="detail-item"><strong>Warehouse:</strong> ${escapeHtml(b.warehouse_name || 'N/A')}</div>
-                            ${b.aisle ? `<div class="detail-item"><strong>Aisle:</strong> ${escapeHtml(b.aisle)}</div>` : ''}
-                            ${b.shelf ? `<div class="detail-item"><strong>Shelf:</strong> ${escapeHtml(b.shelf)}</div>` : ''}
-                            ${b.level ? `<div class="detail-item"><strong>Level:</strong> ${escapeHtml(b.level)}</div>` : ''}
-                        </div>
-                        <div class="item-actions">
-                            <button onclick="editBinLocation(${b.id})" class="btn btn-small">Edit</button>
-                            <button onclick="deleteBinLocation(${b.id})" class="btn btn-small btn-danger">Delete</button>
-                        </div>
-                    </div>
-                `).join('');
+                    `;
+                }).join('');
             }
         }
     } catch (error) {
@@ -1049,30 +1359,37 @@ function openBinLocationModal(id = null) {
 window.openBinLocationModal = openBinLocationModal;
 
 function openAddBinLocationModal() {
-    const warehouseSelect = document.getElementById('addBinLocationWarehouse');
+    const modal = document.getElementById('binLocationModal');
+    const form = document.getElementById('binLocationForm');
+    const title = document.getElementById('binLocationModalTitle');
+    const warehouseSelect = document.getElementById('binWarehouse');
     
-    // Filter warehouses by selected company
-    let filteredWarehouses = warehouses;
-    if (selectedCompanyId) {
-        filteredWarehouses = warehouses.filter(w => w.company_id === selectedCompanyId);
+    if (modal && form && title && warehouseSelect) {
+        title.textContent = 'Add Bin Location';
+        form.reset();
+        // Remove any hidden ID field if it exists
+        const idField = document.getElementById('editBinLocationId');
+        if (idField) idField.remove();
+        
+        // Filter warehouses by selected company
+        let filteredWarehouses = warehouses;
+        if (selectedCompanyId) {
+            filteredWarehouses = warehouses.filter(w => w.company_id === selectedCompanyId);
+        }
+        
+        warehouseSelect.innerHTML = '<option value="">Select Warehouse</option>' + 
+            filteredWarehouses.map(w => `<option value="${w.id}">${escapeHtml(w.warehouse_name)}</option>`).join('');
+        
+        modal.style.display = 'flex';
     }
-    
-    warehouseSelect.innerHTML = '<option value="">Select Warehouse</option>' + 
-        filteredWarehouses.map(w => `<option value="${w.id}">${escapeHtml(w.warehouse_name)}</option>`).join('');
-    
-    document.getElementById('addBinLocationCode').value = '';
-    document.getElementById('addBinLocationName').value = '';
-    document.getElementById('addBinLocationAisle').value = '';
-    document.getElementById('addBinLocationShelf').value = '';
-    document.getElementById('addBinLocationLevel').value = '';
-    document.getElementById('addBinLocationModal').style.display = 'flex';
 }
 window.openAddBinLocationModal = openAddBinLocationModal;
 
-function closeAddBinLocationModal() {
-    document.getElementById('addBinLocationModal').style.display = 'none';
+function closeBinLocationModal() {
+    const modal = document.getElementById('binLocationModal');
+    if (modal) modal.style.display = 'none';
 }
-window.closeAddBinLocationModal = closeAddBinLocationModal;
+window.closeBinLocationModal = closeBinLocationModal;
 
 function openEditBinLocationModal(id) {
     const bin = binLocations.find(b => b.id === id);
@@ -1093,10 +1410,6 @@ function openEditBinLocationModal(id) {
 }
 window.openEditBinLocationModal = openEditBinLocationModal;
 
-function closeEditBinLocationModal() {
-    document.getElementById('editBinLocationModal').style.display = 'none';
-}
-window.closeEditBinLocationModal = closeEditBinLocationModal;
 
 async function handleAddBinLocation(event) {
     event.preventDefault();
@@ -1119,7 +1432,7 @@ async function handleAddBinLocation(event) {
         if (!response.ok) throw new Error('Failed to save bin location');
         
         showToast('Bin location created successfully!', 'success', 3000);
-        closeAddBinLocationModal();
+        closeBinLocationModal();
         await loadBinLocations();
         loadBinLocationsForCompany();
     } catch (error) {
@@ -1150,7 +1463,7 @@ async function handleEditBinLocation(event) {
         if (!response.ok) throw new Error('Failed to update bin location');
         
         showToast('Bin location updated successfully!', 'success', 3000);
-        closeEditBinLocationModal();
+        closeBinLocationModal();
         await loadBinLocations();
         loadBinLocationsForCompany();
     } catch (error) {
@@ -1234,17 +1547,18 @@ async function loadManagersForCompany() {
                 listEl.innerHTML = managers.map(m => `
                     <div class="item-card">
                         <div class="item-header">
-                            <h3>${escapeHtml(m.manager_name)}</h3>
-                            <span class="item-id">${escapeHtml(m.warehouse_name || 'N/A')}</span>
-                        </div>
-                        <div class="item-details">
-                            <div class="detail-item"><strong>Warehouse:</strong> ${escapeHtml(m.warehouse_name || 'N/A')}</div>
-                            ${m.email ? `<div class="detail-item"><strong>Email:</strong> ${escapeHtml(m.email)}</div>` : ''}
-                            ${m.phone ? `<div class="detail-item"><strong>Phone:</strong> ${escapeHtml(m.phone)}</div>` : ''}
-                        </div>
-                        <div class="item-actions">
-                            <button onclick="editManager(${m.id})" class="btn btn-small">Edit</button>
-                            <button onclick="deleteManager(${m.id})" class="btn btn-small btn-danger">Delete</button>
+                            <div>
+                                <h3>${escapeHtml(m.manager_name)}</h3>
+                                <p style="color: var(--text-muted); font-size: 0.875rem; margin: 0.25rem 0 0 0;">${escapeHtml(m.warehouse_name || 'N/A')}</p>
+                                ${m.email ? `<p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0.25rem 0 0 0;">${escapeHtml(m.email)}</p>` : ''}
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 1rem;">
+                                <span class="${m.is_active ? 'status-active' : 'status-inactive'}" style="font-size: 0.8rem; padding: 0.25rem 0.5rem; border-radius: 4px;">${m.is_active ? 'Active' : 'Inactive'}</span>
+                                <div class="item-actions">
+                                    <button onclick="editManager(${m.id})" class="btn btn-small">Edit</button>
+                                    <button onclick="deleteManager(${m.id})" class="btn btn-small btn-danger">Delete</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 `).join('');
@@ -1255,6 +1569,84 @@ async function loadManagersForCompany() {
     }
 }
 window.loadManagersForCompany = loadManagersForCompany;
+
+// Load managers for setup page (with filters)
+async function loadManagersForSetup() {
+    try {
+        const companyFilter = document.getElementById('managerCompanyFilter')?.value || '';
+        const warehouseFilter = document.getElementById('managerWarehouseFilter')?.value || '';
+        
+        let url = `${CONFIG.apiUrl}/managers`;
+        const params = [];
+        if (companyFilter) params.push(`company_id=${companyFilter}`);
+        if (warehouseFilter) params.push(`warehouse_id=${warehouseFilter}`);
+        if (params.length > 0) {
+            url += '?' + params.join('&');
+        }
+        
+        const response = await fetch(url);
+        const managerList = await response.json();
+        
+        const listEl = document.getElementById('managersList');
+        const noManagersEl = document.getElementById('noManagers');
+        
+        if (listEl) {
+            if (managerList.length === 0) {
+                listEl.innerHTML = '';
+                if (noManagersEl) noManagersEl.style.display = 'block';
+            } else {
+                if (noManagersEl) noManagersEl.style.display = 'none';
+                listEl.innerHTML = managerList.map(m => {
+                    const company = companies.find(c => c.id === m.company_id);
+                    const warehouse = warehouses.find(w => w.id === m.warehouse_id);
+                    return `
+                        <div class="item-card">
+                            <div class="item-header">
+                                <h3>${escapeHtml(m.manager_name)}</h3>
+                                ${m.email ? `<span class="item-id">${escapeHtml(m.email)}</span>` : ''}
+                            </div>
+                            <div class="item-details">
+                                <div class="detail-item"><strong>Company:</strong> ${escapeHtml(company ? company.company_name : 'N/A')}</div>
+                                <div class="detail-item"><strong>Warehouse:</strong> ${escapeHtml(warehouse ? warehouse.warehouse_name : 'N/A')}</div>
+                                ${m.phone ? `<div class="detail-item"><strong>Phone:</strong> ${escapeHtml(m.phone)}</div>` : ''}
+                                <div class="detail-item"><strong>Status:</strong> <span class="${m.is_active ? 'status-active' : 'status-inactive'}">${m.is_active ? 'Active' : 'Inactive'}</span></div>
+                            </div>
+                            <div class="item-actions">
+                                <button onclick="editManager(${m.id})" class="btn btn-small">Edit</button>
+                                <button onclick="deleteManager(${m.id})" class="btn btn-small btn-danger">Delete</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+    } catch (error) {
+        console.error('Error loading managers for setup:', error);
+    }
+}
+window.loadManagersForSetup = loadManagersForSetup;
+
+// Update warehouse filter when company filter changes
+function updateManagerWarehouseFilter() {
+    const companyFilter = document.getElementById('managerCompanyFilter')?.value || '';
+    const warehouseFilter = document.getElementById('managerWarehouseFilter');
+    
+    if (warehouseFilter) {
+        const currentValue = warehouseFilter.value;
+        let filteredWarehouses = warehouses;
+        
+        if (companyFilter) {
+            filteredWarehouses = warehouses.filter(w => w.company_id == companyFilter);
+        }
+        
+        warehouseFilter.innerHTML = '<option value="">All Warehouses</option>' + 
+            filteredWarehouses.map(w => `<option value="${w.id}">${escapeHtml(w.warehouse_name)}</option>`).join('');
+        if (currentValue) warehouseFilter.value = currentValue;
+        
+        loadManagersForSetup();
+    }
+}
+window.updateManagerWarehouseFilter = updateManagerWarehouseFilter;
 
 function updateManagerDropdowns() {
     const selects = document.querySelectorAll('select[id*="Manager"], select[id*="manager"]');
@@ -1287,28 +1679,37 @@ function openManagerModal(id = null) {
 window.openManagerModal = openManagerModal;
 
 function openAddManagerModal() {
-    const warehouseSelect = document.getElementById('addManagerWarehouse');
+    const modal = document.getElementById('managerModal');
+    const form = document.getElementById('managerForm');
+    const title = document.getElementById('managerModalTitle');
+    const warehouseSelect = document.getElementById('managerWarehouse');
     
-    // Filter warehouses by selected company
-    let filteredWarehouses = warehouses;
-    if (selectedCompanyId) {
-        filteredWarehouses = warehouses.filter(w => w.company_id === selectedCompanyId);
+    if (modal && form && title && warehouseSelect) {
+        title.textContent = 'Add Manager';
+        form.reset();
+        // Remove any hidden ID field if it exists
+        const idField = document.getElementById('editManagerId');
+        if (idField) idField.remove();
+        
+        // Filter warehouses by selected company
+        let filteredWarehouses = warehouses;
+        if (selectedCompanyId) {
+            filteredWarehouses = warehouses.filter(w => w.company_id === selectedCompanyId);
+        }
+        
+        warehouseSelect.innerHTML = '<option value="">Select Warehouse</option>' + 
+            filteredWarehouses.map(w => `<option value="${w.id}">${escapeHtml(w.warehouse_name)}</option>`).join('');
+        
+        modal.style.display = 'flex';
     }
-    
-    warehouseSelect.innerHTML = '<option value="">Select Warehouse</option>' + 
-        filteredWarehouses.map(w => `<option value="${w.id}">${escapeHtml(w.warehouse_name)}</option>`).join('');
-    
-    document.getElementById('addManagerName').value = '';
-    document.getElementById('addManagerEmail').value = '';
-    document.getElementById('addManagerPhone').value = '';
-    document.getElementById('addManagerModal').style.display = 'flex';
 }
 window.openAddManagerModal = openAddManagerModal;
 
-function closeAddManagerModal() {
-    document.getElementById('addManagerModal').style.display = 'none';
+function closeManagerModal() {
+    const modal = document.getElementById('managerModal');
+    if (modal) modal.style.display = 'none';
 }
-window.closeAddManagerModal = closeAddManagerModal;
+window.closeManagerModal = closeManagerModal;
 
 function openEditManagerModal(id) {
     const manager = managers.find(m => m.id === id);
@@ -1327,10 +1728,6 @@ function openEditManagerModal(id) {
 }
 window.openEditManagerModal = openEditManagerModal;
 
-function closeEditManagerModal() {
-    document.getElementById('editManagerModal').style.display = 'none';
-}
-window.closeEditManagerModal = closeEditManagerModal;
 
 async function handleAddManager(event) {
     event.preventDefault();
@@ -1351,7 +1748,7 @@ async function handleAddManager(event) {
         if (!response.ok) throw new Error('Failed to save manager');
         
         showToast('Manager created successfully!', 'success', 3000);
-        closeAddManagerModal();
+        closeManagerModal();
         await loadManagers();
         loadManagersForCompany();
     } catch (error) {
@@ -1380,7 +1777,7 @@ async function handleEditManager(event) {
         if (!response.ok) throw new Error('Failed to update manager');
         
         showToast('Manager updated successfully!', 'success', 3000);
-        closeEditManagerModal();
+        closeManagerModal();
         await loadManagers();
         loadManagersForCompany();
     } catch (error) {
@@ -1598,52 +1995,47 @@ function displayViewItems(items) {
         return bin ? bin.bin_code : `Bin ${id}`;
     };
     
-    itemsListEl.innerHTML = items.map(item => `
-        <div class="view-item-card">
-            <div class="view-item-header">
-                <div>
-                    <h3 class="view-item-name">${escapeHtml(item.item_name || 'Unnamed Item')}</h3>
-                    ${item.item_code ? `<p class="view-item-code">Code: ${escapeHtml(item.item_code)}</p>` : ''}
-                </div>
-                <div class="view-item-quantity">
-                    <span class="quantity-value">${item.quantity || 0}</span>
-                    <span class="quantity-label">Qty</span>
-                </div>
-            </div>
-            <div class="view-item-details">
-                <div class="view-item-detail-row">
-                    <span class="detail-label">Company:</span>
-                    <span class="detail-value">${escapeHtml(getCompanyName(item.company_id))}</span>
-                </div>
-                <div class="view-item-detail-row">
-                    <span class="detail-label">Warehouse:</span>
-                    <span class="detail-value">${escapeHtml(getWarehouseName(item.warehouse_id))}</span>
-                </div>
-                ${item.bin_location_id ? `
-                <div class="view-item-detail-row">
-                    <span class="detail-label">Bin Location:</span>
-                    <span class="detail-value">${escapeHtml(getBinLocationCode(item.bin_location_id))}</span>
-                </div>
-                ` : ''}
-                ${item.date ? `
-                <div class="view-item-detail-row">
-                    <span class="detail-label">Date:</span>
-                    <span class="detail-value">${escapeHtml(item.date)}</span>
-                </div>
-                ` : ''}
-                ${item.notes ? `
-                <div class="view-item-detail-row">
-                    <span class="detail-label">Notes:</span>
-                    <span class="detail-value">${escapeHtml(item.notes)}</span>
-                </div>
-                ` : ''}
-            </div>
-            <div class="view-item-actions">
-                <button onclick="openEditItemModal(${item.id})" class="btn btn-small btn-secondary">Edit</button>
-                <button onclick="deleteItem(${item.id})" class="btn btn-small btn-danger">Delete</button>
-            </div>
-        </div>
-    `).join('');
+    // Create table header
+    const tableHTML = `
+        <table class="view-items-table">
+            <thead>
+                <tr>
+                    <th>Item Name</th>
+                    <th>Item Code</th>
+                    <th>Quantity</th>
+                    <th>Company</th>
+                    <th>Warehouse</th>
+                    <th>Bin Location</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${items.map(item => `
+                    <tr class="view-item-row">
+                        <td class="view-item-name-cell">
+                            <div class="item-name-text">${escapeHtml(item.item_name || 'Unnamed Item')}</div>
+                            ${item.notes ? `<div class="item-notes-text">${escapeHtml(item.notes)}</div>` : ''}
+                        </td>
+                        <td class="view-item-code-cell">${item.item_code ? escapeHtml(item.item_code) : '—'}</td>
+                        <td class="view-item-quantity-cell">
+                            <span class="quantity-badge">${item.quantity || 0}</span>
+                        </td>
+                        <td class="view-item-company-cell">${escapeHtml(getCompanyName(item.company_id))}</td>
+                        <td class="view-item-warehouse-cell">${escapeHtml(getWarehouseName(item.warehouse_id))}</td>
+                        <td class="view-item-bin-cell">${item.bin_location_id ? escapeHtml(getBinLocationCode(item.bin_location_id)) : '—'}</td>
+                        <td class="view-item-date-cell">${item.date ? escapeHtml(item.date) : '—'}</td>
+                        <td class="view-item-actions-cell">
+                            <button onclick="openEditItemModal(${item.id})" class="btn btn-tiny btn-secondary">Edit</button>
+                            <button onclick="deleteItem(${item.id})" class="btn btn-tiny btn-danger">Delete</button>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+    
+    itemsListEl.innerHTML = tableHTML;
 }
 
 function updateViewFilters() {
@@ -2242,6 +2634,37 @@ async function handleItemCodeScan() {
         return;
     }
     
+    // Lookup item in catalog
+    try {
+        const response = await fetch(`${CONFIG.apiUrl}/items-catalog?stock_code=${encodeURIComponent(itemCode)}`);
+        
+        if (response.ok) {
+            const item = await response.json();
+            // Auto-populate item name
+            const itemNameInput = document.getElementById('itemNameInput');
+            if (itemNameInput && item.item_name) {
+                itemNameInput.value = item.item_name;
+            }
+            
+            // Show serial number requirement if needed
+            if (item.requires_serial_number) {
+                showToast('⚠️ This item requires a serial number', 'warning', 4000);
+            }
+        } else if (response.status === 404) {
+            // Item not found in catalog - allow manual entry
+            console.log('Item not found in catalog, allowing manual entry');
+            const itemNameInput = document.getElementById('itemNameInput');
+            if (itemNameInput) {
+                itemNameInput.focus();
+            }
+        } else {
+            throw new Error('Failed to lookup item');
+        }
+    } catch (error) {
+        console.error('Error looking up item:', error);
+        // Continue anyway - allow manual entry
+    }
+    
     // Auto-focus on quantity input and open number pad
     setTimeout(() => {
         const quantityInput = document.getElementById('itemQuantityInput');
@@ -2255,11 +2678,20 @@ async function handleItemCodeScan() {
 }
 window.handleItemCodeScan = handleItemCodeScan;
 
-// Allow Enter key on item code to move to quantity
+// Allow Enter key on item code to trigger lookup and move to quantity
 document.getElementById('itemCodeInput')?.addEventListener('keypress', function(e) {
     if (e.key === 'Enter') {
         e.preventDefault();
         handleItemCodeScan();
+    }
+});
+
+// Clear item name when item code input changes
+document.getElementById('itemCodeInput')?.addEventListener('input', function(e) {
+    const itemNameInput = document.getElementById('itemNameInput');
+    if (itemNameInput && !itemNameInput.value) {
+        // Only clear if it's empty (don't clear if user manually entered something)
+        itemNameInput.value = '';
     }
 });
 
@@ -2474,6 +2906,427 @@ async function loadActiveStockTake(companyId, warehouseId) {
         console.error('Error loading active stock take:', error);
     }
 }
+
+// ========== SYSTEM ADMIN ==========
+// ADMIN_PASSWORD is defined at the top of the file
+
+function isAdminAuthenticated() {
+    return sessionStorage.getItem('adminAuthenticated') === 'true';
+}
+
+function checkAdminPassword() {
+    console.log('=== checkAdminPassword called ===');
+    
+    const passwordInput = document.getElementById('adminPassword');
+    const errorDiv = document.getElementById('adminPasswordError');
+    
+    if (!passwordInput) {
+        console.error('adminPassword input not found');
+        alert('Password input not found. Please refresh the page.');
+        return false;
+    }
+    
+    const password = passwordInput.value.trim();
+    console.log('Password entered:', password);
+    console.log('Password length:', password.length);
+    console.log('Expected password:', ADMIN_PASSWORD);
+    console.log('Expected length:', ADMIN_PASSWORD.length);
+    console.log('Passwords match:', password === ADMIN_PASSWORD);
+    
+    if (password === ADMIN_PASSWORD) {
+        console.log('✓ Password correct, granting access');
+        sessionStorage.setItem('adminAuthenticated', 'true');
+        
+        // Hide login form and show admin content
+        const loginDiv = document.getElementById('systemAdminLogin');
+        const contentDiv = document.getElementById('systemAdminContent');
+        
+        console.log('Login div found:', !!loginDiv);
+        console.log('Content div found:', !!contentDiv);
+        
+        if (loginDiv) {
+            loginDiv.style.display = 'none';
+            console.log('Login div hidden');
+        }
+        if (contentDiv) {
+            contentDiv.style.display = 'block';
+            console.log('Content div shown');
+        }
+        
+        if (errorDiv) errorDiv.style.display = 'none';
+        passwordInput.value = '';
+        
+        // Load admin data
+        showAdminContent();
+        
+        showToast('Admin access granted', 'success', 2000);
+        return true;
+    } else {
+        console.log('✗ Password incorrect');
+        console.log('Entered:', JSON.stringify(password));
+        console.log('Expected:', JSON.stringify(ADMIN_PASSWORD));
+        if (errorDiv) {
+            errorDiv.textContent = 'Incorrect password. Please try again.';
+            errorDiv.style.display = 'block';
+        }
+        passwordInput.value = '';
+        setTimeout(() => {
+            if (passwordInput) passwordInput.focus();
+        }, 100);
+        showToast('Incorrect password', 'error', 3000);
+        return false;
+    }
+}
+window.checkAdminPassword = checkAdminPassword;
+
+function showAdminLogin() {
+    const loginDiv = document.getElementById('systemAdminLogin');
+    const contentDiv = document.getElementById('systemAdminContent');
+    
+    if (loginDiv) loginDiv.style.display = 'block';
+    if (contentDiv) contentDiv.style.display = 'none';
+}
+
+function showAdminContent() {
+    const loginDiv = document.getElementById('systemAdminLogin');
+    const contentDiv = document.getElementById('systemAdminContent');
+    
+    if (loginDiv) loginDiv.style.display = 'none';
+    if (contentDiv) contentDiv.style.display = 'block';
+    
+    // Load data
+    loadManagerCompanyAccess();
+    loadCounterCompanyAccess();
+    if (managers.length === 0) loadManagers();
+    if (companies.length === 0) loadCompanies();
+}
+
+// Manager-Company Access Management
+async function loadManagerCompanyAccess() {
+    try {
+        const response = await fetch(`${CONFIG.apiUrl}/manager-company-access`);
+        
+        let accessList = [];
+        if (response.ok) {
+            accessList = await response.json();
+        } else if (response.status === 404) {
+            accessList = [];
+        } else {
+            throw new Error('Failed to load manager-company access');
+        }
+        
+        const managerFilter = document.getElementById('adminManagerFilter');
+        if (managerFilter && managers.length > 0) {
+            const currentValue = managerFilter.value;
+            managerFilter.innerHTML = '<option value="">All Managers</option>' + 
+                managers.map(m => `<option value="${m.id}">${escapeHtml(m.manager_name)}</option>`).join('');
+            if (currentValue) managerFilter.value = currentValue;
+        }
+        
+        const filterValue = managerFilter?.value || '';
+        let filteredList = accessList;
+        if (filterValue) {
+            filteredList = accessList.filter(a => a.manager_id === parseInt(filterValue));
+        }
+        
+        const listEl = document.getElementById('managerCompanyAccessList');
+        const noItemsEl = document.getElementById('noManagerAccess');
+        
+        if (listEl) {
+            if (filteredList.length === 0) {
+                listEl.innerHTML = '';
+                if (noItemsEl) noItemsEl.style.display = 'block';
+            } else {
+                if (noItemsEl) noItemsEl.style.display = 'none';
+                listEl.innerHTML = filteredList.map(access => {
+                    const manager = managers.find(m => m.id === access.manager_id);
+                    const company = companies.find(c => c.id === access.company_id);
+                    return `
+                        <div class="item-card">
+                            <div class="item-header">
+                                <div>
+                                    <h3>${escapeHtml(manager ? manager.manager_name : 'Unknown Manager')}</h3>
+                                    <p style="color: var(--text-muted); font-size: 0.875rem; margin: 0.25rem 0 0 0;">${escapeHtml(company ? company.company_name : 'Unknown Company')}</p>
+                                </div>
+                                <div class="item-actions">
+                                    <button onclick="deleteManagerCompanyAccess(${access.id})" class="btn btn-small btn-danger">Delete</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+    } catch (error) {
+        console.error('Error loading manager-company access:', error);
+        const listEl = document.getElementById('managerCompanyAccessList');
+        const noItemsEl = document.getElementById('noManagerAccess');
+        if (listEl) listEl.innerHTML = '';
+        if (noItemsEl) noItemsEl.style.display = 'block';
+    }
+}
+window.loadManagerCompanyAccess = loadManagerCompanyAccess;
+
+async function loadCounterCompanyAccess() {
+    try {
+        const response = await fetch(`${CONFIG.apiUrl}/counter-company-access`);
+        
+        let accessList = [];
+        if (response.ok) {
+            accessList = await response.json();
+        } else if (response.status === 404) {
+            accessList = [];
+        } else {
+            throw new Error('Failed to load counter-company access');
+        }
+        
+        const counterFilter = document.getElementById('adminCounterFilter');
+        const uniqueEmails = [...new Set(accessList.map(a => a.counter_email))];
+        if (counterFilter) {
+            const currentValue = counterFilter.value;
+            counterFilter.innerHTML = '<option value="">All Counters</option>' + 
+                uniqueEmails.map(email => `<option value="${email}">${escapeHtml(email)}</option>`).join('');
+            if (currentValue) counterFilter.value = currentValue;
+        }
+        
+        const filterValue = counterFilter?.value || '';
+        let filteredList = accessList;
+        if (filterValue) {
+            filteredList = accessList.filter(a => a.counter_email === filterValue);
+        }
+        
+        const listEl = document.getElementById('counterCompanyAccessList');
+        const noItemsEl = document.getElementById('noCounterAccess');
+        
+        if (listEl) {
+            if (filteredList.length === 0) {
+                listEl.innerHTML = '';
+                if (noItemsEl) noItemsEl.style.display = 'block';
+            } else {
+                if (noItemsEl) noItemsEl.style.display = 'none';
+                listEl.innerHTML = filteredList.map(access => {
+                    const company = companies.find(c => c.id === access.company_id);
+                    return `
+                        <div class="item-card">
+                            <div class="item-header">
+                                <div>
+                                    <h3>${escapeHtml(access.counter_email)}</h3>
+                                    <p style="color: var(--text-muted); font-size: 0.875rem; margin: 0.25rem 0 0 0;">${escapeHtml(company ? company.company_name : 'Unknown Company')}</p>
+                                </div>
+                                <div class="item-actions">
+                                    <button onclick="deleteCounterCompanyAccess(${access.id})" class="btn btn-small btn-danger">Delete</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+    } catch (error) {
+        console.error('Error loading counter-company access:', error);
+        const listEl = document.getElementById('counterCompanyAccessList');
+        const noItemsEl = document.getElementById('noCounterAccess');
+        if (listEl) listEl.innerHTML = '';
+        if (noItemsEl) noItemsEl.style.display = 'block';
+    }
+}
+window.loadCounterCompanyAccess = loadCounterCompanyAccess;
+
+function openAddManagerCompanyAccessModal() {
+    if (!isAdminAuthenticated()) {
+        showToast('Admin access required', 'error', 3000);
+        return;
+    }
+    
+    const modal = document.getElementById('managerCompanyAccessModal');
+    const form = document.getElementById('managerCompanyAccessForm');
+    const title = document.getElementById('managerCompanyAccessModalTitle');
+    const managerSelect = document.getElementById('accessManager');
+    const companySelect = document.getElementById('accessCompany');
+    
+    if (modal && form && title && managerSelect && companySelect) {
+        title.textContent = 'Add Manager-Company Access';
+        form.reset();
+        
+        const idField = document.getElementById('editManagerCompanyAccessId');
+        if (idField) idField.remove();
+        
+        managerSelect.innerHTML = '<option value="">Select Manager</option>' + 
+            managers.map(m => `<option value="${m.id}">${escapeHtml(m.manager_name)}</option>`).join('');
+        
+        companySelect.innerHTML = '<option value="">Select Company</option>' + 
+            companies.map(c => `<option value="${c.id}">${escapeHtml(c.company_name)}</option>`).join('');
+        
+        modal.style.display = 'flex';
+    }
+}
+window.openAddManagerCompanyAccessModal = openAddManagerCompanyAccessModal;
+
+function closeManagerCompanyAccessModal() {
+    const modal = document.getElementById('managerCompanyAccessModal');
+    if (modal) modal.style.display = 'none';
+}
+window.closeManagerCompanyAccessModal = closeManagerCompanyAccessModal;
+
+async function handleManagerCompanyAccessSubmit(event) {
+    event.preventDefault();
+    if (!isAdminAuthenticated()) {
+        showToast('Admin access required', 'error', 3000);
+        return;
+    }
+    
+    const managerId = document.getElementById('accessManager')?.value;
+    const companyId = document.getElementById('accessCompany')?.value;
+    
+    if (!managerId || !companyId) {
+        showToast('Please select both manager and company', 'error', 3000);
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${CONFIG.apiUrl}/manager-company-access`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                manager_id: parseInt(managerId),
+                company_id: parseInt(companyId)
+            })
+        });
+        
+        if (!response.ok) {
+            if (response.status === 409) {
+                throw new Error('This access already exists');
+            }
+            throw new Error('Failed to save access');
+        }
+        
+        showToast('Access granted successfully!', 'success', 3000);
+        closeManagerCompanyAccessModal();
+        await loadManagerCompanyAccess();
+    } catch (error) {
+        showToast(error.message, 'error', 6000);
+    }
+}
+window.handleManagerCompanyAccessSubmit = handleManagerCompanyAccessSubmit;
+
+async function deleteManagerCompanyAccess(id) {
+    if (!isAdminAuthenticated()) {
+        showToast('Admin access required', 'error', 3000);
+        return;
+    }
+    
+    if (!confirm('Are you sure you want to remove this access?')) return;
+    
+    try {
+        const response = await fetch(`${CONFIG.apiUrl}/manager-company-access/${id}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) throw new Error('Failed to delete access');
+        
+        showToast('Access removed successfully!', 'success', 3000);
+        await loadManagerCompanyAccess();
+    } catch (error) {
+        showToast(error.message, 'error', 6000);
+    }
+}
+window.deleteManagerCompanyAccess = deleteManagerCompanyAccess;
+
+function openAddCounterCompanyAccessModal() {
+    if (!isAdminAuthenticated()) {
+        showToast('Admin access required', 'error', 3000);
+        return;
+    }
+    
+    const modal = document.getElementById('counterCompanyAccessModal');
+    const form = document.getElementById('counterCompanyAccessForm');
+    const title = document.getElementById('counterCompanyAccessModalTitle');
+    const companySelect = document.getElementById('accessCounterCompany');
+    
+    if (modal && form && title && companySelect) {
+        title.textContent = 'Add Counter-Company Access';
+        form.reset();
+        
+        const idField = document.getElementById('editCounterCompanyAccessId');
+        if (idField) idField.remove();
+        
+        companySelect.innerHTML = '<option value="">Select Company</option>' + 
+            companies.map(c => `<option value="${c.id}">${escapeHtml(c.company_name)}</option>`).join('');
+        
+        modal.style.display = 'flex';
+    }
+}
+window.openAddCounterCompanyAccessModal = openAddCounterCompanyAccessModal;
+
+function closeCounterCompanyAccessModal() {
+    const modal = document.getElementById('counterCompanyAccessModal');
+    if (modal) modal.style.display = 'none';
+}
+window.closeCounterCompanyAccessModal = closeCounterCompanyAccessModal;
+
+async function handleCounterCompanyAccessSubmit(event) {
+    event.preventDefault();
+    if (!isAdminAuthenticated()) {
+        showToast('Admin access required', 'error', 3000);
+        return;
+    }
+    
+    const counterEmail = document.getElementById('accessCounterEmail')?.value.trim();
+    const companyId = document.getElementById('accessCounterCompany')?.value;
+    
+    if (!counterEmail || !companyId) {
+        showToast('Please enter counter email and select company', 'error', 3000);
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${CONFIG.apiUrl}/counter-company-access`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                counter_email: counterEmail,
+                company_id: parseInt(companyId)
+            })
+        });
+        
+        if (!response.ok) {
+            if (response.status === 409) {
+                throw new Error('This access already exists');
+            }
+            throw new Error('Failed to save access');
+        }
+        
+        showToast('Access granted successfully!', 'success', 3000);
+        closeCounterCompanyAccessModal();
+        await loadCounterCompanyAccess();
+    } catch (error) {
+        showToast(error.message, 'error', 6000);
+    }
+}
+window.handleCounterCompanyAccessSubmit = handleCounterCompanyAccessSubmit;
+
+async function deleteCounterCompanyAccess(id) {
+    if (!isAdminAuthenticated()) {
+        showToast('Admin access required', 'error', 3000);
+        return;
+    }
+    
+    if (!confirm('Are you sure you want to remove this access?')) return;
+    
+    try {
+        const response = await fetch(`${CONFIG.apiUrl}/counter-company-access/${id}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) throw new Error('Failed to delete access');
+        
+        showToast('Access removed successfully!', 'success', 3000);
+        await loadCounterCompanyAccess();
+    } catch (error) {
+        showToast(error.message, 'error', 6000);
+    }
+}
+window.deleteCounterCompanyAccess = deleteCounterCompanyAccess;
 
 // ========== OPEN STOCK TAKES LIST ==========
 async function loadOpenStockTakes() {

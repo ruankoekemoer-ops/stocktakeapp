@@ -52,7 +52,7 @@
                 <div class="header-title" id="pageTitle">Stock Take</div>
                 <div class="header-actions" id="headerActions">
                     <div id="userInfo" class="user-info" style="display: none;"></div>
-                    <button id="authButton" class="btn btn-primary btn-small" onclick="signIn()">Sign in with Microsoft</button>
+                    <button id="authButton" class="btn btn-primary btn-small">Sign In</button>
                     <span class="role-badge" id="roleBadge">Manager</span>
                     <button onclick="switchRole()" class="btn-switch-role">Switch Role</button>
                 </div>
@@ -62,10 +62,10 @@
             <div class="content-area">
                 <div class="page-content">
                     <!-- Stock Take Tab -->
-                    <div id="stocktakeTab" class="tab-content active">
+                    <div id="stocktakeTab" class="tab-content active" style="display: block;">
                         <div class="page-header">
                             <h1 class="page-title">Stock Take</h1>
-                            <p class="page-subtitle" id="roleSubtitle">Scan, count, and submit inventory</p>
+                            <p class="page-subtitle" id="roleSubtitle">Manage companies, warehouses, and view reports</p>
                         </div>
 
                         <!-- Counter Mode: Simple Start Counting -->
@@ -96,7 +96,7 @@
                         </section>
 
                         <!-- Manager Mode: Open/Close Stock Take -->
-                        <section class="card" id="managerStockTakeSection" style="display: none;">
+                        <section class="card" id="managerStockTakeSection">
                             <div class="card-header">
                                 <h2 class="card-title">Manage Stock Take</h2>
                             </div>
@@ -180,12 +180,14 @@
                                 
                                 <div class="form-row">
                                     <div class="form-group">
-                                        <label for="itemNameInput">Item Name (Optional)</label>
+                                        <label for="itemNameInput">Item Name</label>
                                         <input 
                                             type="text" 
                                             id="itemNameInput" 
                                             class="form-control" 
-                                            placeholder="Auto-filled or enter manually"
+                                            placeholder="Auto-filled when item code is scanned"
+                                            readonly
+                                            style="background-color: var(--bg-secondary);"
                                         >
                                     </div>
                                     <div class="form-group">
@@ -224,7 +226,7 @@
                     </div>
 
                     <!-- Open Stock Takes Tab -->
-                    <div id="openStockTakesTab" class="tab-content">
+                    <div id="openStockTakesTab" class="tab-content" style="display: none;">
                         <div class="page-header">
                             <h1 class="page-title">Open Stock Takes</h1>
                             <p class="page-subtitle">View and manage active stock takes</p>
@@ -240,86 +242,126 @@
                     </div>
 
                     <!-- Setup Tab -->
-                    <div id="setupTab" class="tab-content">
-                        <div class="page-header">
-                            <h1 class="page-title">Setup</h1>
-                            <p class="page-subtitle">Configure companies, warehouses, and managers</p>
-                        </div>
-                        
+                    <div id="setupTab" class="tab-content" style="display: none;">
                         <!-- Company Selection -->
-                        <div class="card">
+                        <div class="card" style="margin-bottom: 2rem;">
                             <div class="card-header">
-                                <h2 class="card-title">Company Configuration</h2>
+                                <h2 class="card-title">Select Company</h2>
+                                <button onclick="openAddCompanyModal()" class="btn btn-primary btn-small">Add Company</button>
                             </div>
                             <div class="form-group">
-                                <label for="selectedCompany">Select Company to Configure</label>
-                                <div class="input-with-button-large">
-                                    <select id="selectedCompany" class="form-control" onchange="onCompanySelected()">
-                                        <option value="">-- Select a Company --</option>
-                                    </select>
-                                    <button onclick="openAddCompanyModal()" class="btn btn-primary">New Company</button>
-                                </div>
+                                <select id="selectedCompany" class="form-control" onchange="onCompanySelected()" style="font-size: 1rem; padding: 0.75rem;">
+                                    <option value="">-- Select a Company --</option>
+                                </select>
                             </div>
+                            <div id="companiesList" class="items-list" style="margin-top: 1.5rem;"></div>
+                            <div id="noCompanies" class="no-items" style="display: none;">No companies found</div>
                         </div>
 
                         <!-- Company Details (shown when company selected) -->
                         <div id="companyDetailsSection" style="display: none;">
                             <!-- Warehouses Section -->
-                            <div class="card">
+                            <div class="card" style="margin-bottom: 2rem;">
                                 <div class="card-header">
                                     <h2 class="card-title">Warehouses</h2>
                                     <button onclick="openAddWarehouseModal()" class="btn btn-primary btn-small">Add Warehouse</button>
                                 </div>
                                 <div id="warehousesList" class="items-list"></div>
-                                <div id="noWarehouses" class="no-items" style="display: none;">No warehouses found. Add a warehouse to get started.</div>
+                                <div id="noWarehouses" class="no-items" style="display: none;">No warehouses found</div>
                             </div>
 
                             <!-- Bin Locations Section -->
-                            <div class="card">
+                            <div class="card" style="margin-bottom: 2rem;">
                                 <div class="card-header">
                                     <h2 class="card-title">Bin Locations</h2>
                                     <button onclick="openAddBinLocationModal()" class="btn btn-primary btn-small">Add Bin Location</button>
                                 </div>
-                                <div class="form-group">
-                                    <label>Filter by Warehouse</label>
+                                <div class="form-group" style="margin-bottom: 1.5rem;">
                                     <select id="binLocationWarehouseFilter" class="form-control" onchange="loadBinLocationsForCompany()">
                                         <option value="">All Warehouses</option>
                                     </select>
                                 </div>
                                 <div id="binLocationsList" class="items-list"></div>
-                                <div id="noBinLocations" class="no-items" style="display: none;">No bin locations found. Add a bin location to get started.</div>
+                                <div id="noBinLocations" class="no-items" style="display: none;">No bin locations found</div>
                             </div>
 
                             <!-- Managers Section -->
                             <div class="card">
                                 <div class="card-header">
-                                    <h2 class="card-title">Warehouse Managers</h2>
+                                    <h2 class="card-title">Managers</h2>
                                     <button onclick="openAddManagerModal()" class="btn btn-primary btn-small">Add Manager</button>
                                 </div>
-                                <div class="form-group">
-                                    <label>Filter by Warehouse</label>
+                                <div class="form-group" style="margin-bottom: 1.5rem;">
                                     <select id="managerWarehouseFilter" class="form-control" onchange="loadManagersForCompany()">
                                         <option value="">All Warehouses</option>
                                     </select>
                                 </div>
                                 <div id="managersList" class="items-list"></div>
-                                <div id="noManagers" class="no-items" style="display: none;">No managers found. Add a manager to get started.</div>
+                                <div id="noManagers" class="no-items" style="display: none;">No managers found</div>
                             </div>
                         </div>
+                    </div>
 
-                        <!-- All Companies List (shown when no company selected) -->
-                        <div id="allCompaniesSection" class="card">
+                    <!-- System Admin Tab -->
+                    <div id="systemAdminTab" class="tab-content" style="display: none;">
+                        <div class="page-header">
+                            <h1 class="page-title">System Administration</h1>
+                            <p class="page-subtitle">Manage access permissions and system settings</p>
+                        </div>
+
+                        <!-- Password Protection -->
+                        <div id="systemAdminLogin" class="card" style="max-width: 500px; margin: 2rem auto;">
                             <div class="card-header">
-                                <h2 class="card-title">All Companies</h2>
-                                <button onclick="openAddCompanyModal()" class="btn btn-primary">Add Company</button>
+                                <h2 class="card-title">Admin Access Required</h2>
                             </div>
-                            <div id="companiesList" class="items-list"></div>
-                            <div id="noCompanies" class="no-items" style="display: none;">No companies found. Create your first company to get started.</div>
+                            <div>
+                                <div class="form-group">
+                                    <label for="adminPassword">Enter Admin Password</label>
+                                    <input type="password" id="adminPassword" class="form-control" placeholder="Enter password..." required autofocus>
+                                </div>
+                                <div class="button-group">
+                                    <button type="button" id="accessAdminBtn" class="btn btn-primary" onclick="checkAdminPassword()">Access Admin Panel</button>
+                                </div>
+                            </div>
+                            <div id="adminPasswordError" class="error-message" style="display: none; color: var(--error-color); margin-top: 1rem;"></div>
+                        </div>
+
+                        <!-- Admin Panel Content (hidden until authenticated) -->
+                        <div id="systemAdminContent" style="display: none;">
+                            <!-- Manager-Company Access -->
+                            <div class="card" style="margin-bottom: 2rem;">
+                                <div class="card-header">
+                                    <h2 class="card-title">Manager-Company Access</h2>
+                                    <button onclick="openAddManagerCompanyAccessModal()" class="btn btn-primary btn-small">Add Access</button>
+                                </div>
+                                <div class="form-group" style="margin-bottom: 1.5rem;">
+                                    <select id="adminManagerFilter" class="form-control" onchange="loadManagerCompanyAccess()">
+                                        <option value="">All Managers</option>
+                                    </select>
+                                </div>
+                                <div id="managerCompanyAccessList" class="items-list"></div>
+                                <div id="noManagerAccess" class="no-items" style="display: none;">No access records found</div>
+                            </div>
+
+                            <!-- Counter-Company Access -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h2 class="card-title">Counter-Company Access</h2>
+                                    <button onclick="openAddCounterCompanyAccessModal()" class="btn btn-primary btn-small">Add Access</button>
+                                </div>
+                                <div class="form-group" style="margin-bottom: 1.5rem;">
+                                    <select id="adminCounterFilter" class="form-control" onchange="loadCounterCompanyAccess()">
+                                        <option value="">All Counters</option>
+                                    </select>
+                                </div>
+                                <div id="counterCompanyAccessList" class="items-list"></div>
+                                <div id="noCounterAccess" class="no-items" style="display: none;">No access records found</div>
+                            </div>
                         </div>
                     </div>
 
                     <!-- View Items Tab -->
-                    <div id="viewTab" class="tab-content">
+                    <div id="viewTab" class="tab-content" style="display: none;">
                         <div class="view-items-page">
                             <div class="view-items-header">
                                 <div>
@@ -360,7 +402,7 @@
                                 <div id="viewItemsLoading" class="loading-state" style="display: none;">
                                     <p>Loading items...</p>
                                 </div>
-                                <div id="viewItemsList" class="view-items-grid"></div>
+                                <div id="viewItemsList" class="view-items-list"></div>
                                 <div id="viewItemsEmpty" class="no-items" style="display: none;">
                                     <p>No items found.</p>
                                 </div>
@@ -371,12 +413,6 @@
             </div>
         </div>
 
-        <!-- Mobile Navigation (Bottom Bar) -->
-        <nav class="mobile-nav" id="mobileNav">
-            <div class="mobile-nav-items">
-                <!-- Navigation items will be populated by JavaScript -->
-            </div>
-        </nav>
     </div>
 
     <!-- Modals -->
@@ -488,6 +524,60 @@
         </div>
     </div>
 
+    <!-- Add/Edit Manager-Company Access Modal -->
+    <div id="managerCompanyAccessModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="managerCompanyAccessModalTitle">Add Manager-Company Access</h3>
+                <button class="modal-close" onclick="closeManagerCompanyAccessModal()">&times;</button>
+            </div>
+            <form id="managerCompanyAccessForm" onsubmit="handleManagerCompanyAccessSubmit(event)">
+                <div class="form-group">
+                    <label for="accessManager">Manager</label>
+                    <select id="accessManager" class="form-control" required>
+                        <option value="">Select Manager</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="accessCompany">Company</label>
+                    <select id="accessCompany" class="form-control" required>
+                        <option value="">Select Company</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" onclick="closeManagerCompanyAccessModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add/Edit Counter-Company Access Modal -->
+    <div id="counterCompanyAccessModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="counterCompanyAccessModalTitle">Add Counter-Company Access</h3>
+                <button class="modal-close" onclick="closeCounterCompanyAccessModal()">&times;</button>
+            </div>
+            <form id="counterCompanyAccessForm" onsubmit="handleCounterCompanyAccessSubmit(event)">
+                <div class="form-group">
+                    <label for="accessCounterEmail">Counter Email/Login</label>
+                    <input type="email" id="accessCounterEmail" class="form-control" placeholder="user@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="accessCounterCompany">Company</label>
+                    <select id="accessCounterCompany" class="form-control" required>
+                        <option value="">Select Company</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" onclick="closeCounterCompanyAccessModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- QR Scanner Modal -->
     <div id="qrScannerModal" class="modal">
         <div class="modal-content qr-scanner-content">
@@ -500,6 +590,12 @@
             <p class="qr-hint">Position the QR code within the camera view</p>
         </div>
     </div>
+
+    <!-- System Admin Button (Bottom Left) -->
+    <button id="systemAdminBtn" class="system-admin-btn" onclick="showTab('systemAdmin')" title="System Admin">
+        <span class="system-admin-icon">🔐</span>
+        <span class="system-admin-label">Admin</span>
+    </button>
 
     <script src="js/config.js"></script>
     <script src="js/auth.js"></script>

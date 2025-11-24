@@ -1,28 +1,34 @@
 #!/bin/bash
+# Push updates to GitHub
 
 cd "/Users/ruankoekemoer/Sharepoint Test"
 
-echo "🚀 Pushing changes to GitHub..."
-
-# Check git status
+echo "🔄 Checking git status..."
 git status
 
-# Add all changes
-echo "📝 Adding files..."
-git add .
+echo ""
+echo "📝 Adding all changes..."
+git add -A
 
-# Commit changes
+echo ""
 echo "💾 Committing changes..."
-git commit -m "Fix Microsoft authentication: require login before access
+git commit -m "Add items catalog system: database table, API endpoints, import script, and auto-populate item names on scan
 
-- Fixed sign-in button to properly trigger authentication
-- Added login screen that blocks access until user signs in
-- Users must authenticate before selecting role or accessing app
-- Improved error handling and user feedback for auth flow
-- Sign-out now properly blocks access again"
+- Created items_catalog database table (stock_code, item_name, requires_serial_number)
+- Added API endpoints for items catalog (GET, POST, PUT, DELETE, lookup by stock_code)
+- Updated frontend to auto-populate item names when stock codes are scanned
+- Created import script to import items from CSV file
+- Added diagnostic and test scripts for troubleshooting
+- Item name field is now read-only and auto-filled from catalog"
 
-# Push to GitHub
-echo "📤 Pushing to GitHub..."
-git push -u origin main
+echo ""
+echo "🚀 Pushing to GitHub..."
+git push origin main
 
-echo "✅ Done!"
+if [ $? -eq 0 ]; then
+    echo ""
+    echo "✅ Successfully pushed to GitHub!"
+else
+    echo ""
+    echo "❌ Push failed. Check the error above."
+fi

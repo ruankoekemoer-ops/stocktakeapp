@@ -1,10 +1,14 @@
 /**
- * Microsoft Authentication using MSAL.js
- * Handles user login, logout, and token management
+ * Authentication System
+ * Currently using simple email-based login (temporary until Entra ID is set up)
+ * Can be switched back to Microsoft MSAL.js authentication later
  */
 
 let msalInstance = null;
 let currentUser = null;
+
+// Simple email-based authentication (temporary)
+const USE_EMAIL_AUTH = true; // Set to false to use Microsoft authentication
 
 // Helper function for toast notifications (if not available)
 function showToast(message, type = 'info', duration = 5000) {
@@ -90,8 +94,14 @@ async function initMSAL() {
     }
 }
 
-// Sign in with Microsoft
+// Sign in with Microsoft (for when Entra ID is set up)
 async function signIn() {
+    if (USE_EMAIL_AUTH) {
+        // Redirect to email login screen
+        blockAccessUntilLogin();
+        return;
+    }
+    
     try {
         console.log('Sign in clicked');
         
@@ -137,24 +147,38 @@ async function signIn() {
 // Sign out
 async function signOut() {
     try {
-        if (!msalInstance) {
-            return;
+        if (USE_EMAIL_AUTH) {
+            // Email-based sign out
+            sessionStorage.removeItem('loggedInUserEmail');
+            sessionStorage.removeItem('adminAuthenticated'); // Also clear admin auth
+            currentUser = null;
+            updateUIForUser(null);
+            
+            // Block access after logout
+            blockAccessUntilLogin();
+            
+            showToast('Signed out successfully', 'success', 3000);
+        } else {
+            // Microsoft MSAL sign out
+            if (!msalInstance) {
+                return;
+            }
+            
+            const accounts = msalInstance.getAllAccounts();
+            if (accounts.length > 0) {
+                await msalInstance.logoutPopup({
+                    account: accounts[0]
+                });
+            }
+            
+            currentUser = null;
+            updateUIForUser(null);
+            
+            // Block access after logout
+            blockAccessUntilLogin();
+            
+            showToast('Signed out successfully', 'success', 3000);
         }
-        
-        const accounts = msalInstance.getAllAccounts();
-        if (accounts.length > 0) {
-            await msalInstance.logoutPopup({
-                account: accounts[0]
-            });
-        }
-        
-        currentUser = null;
-        updateUIForUser(null);
-        
-        // Block access after logout
-        blockAccessUntilLogin();
-        
-        showToast('Signed out successfully', 'success', 3000);
     } catch (error) {
         console.error('Sign out error:', error);
         showToast('Sign out failed: ' + error.message, 'error', 5000);
@@ -219,7 +243,7 @@ function updateUIForUser(user) {
         // User is signed in
         if (authButton) {
             authButton.textContent = 'Sign Out';
-            authButton.setAttribute('onclick', 'signOut()');
+            authButton.onclick = signOut;
             authButton.className = 'btn btn-secondary btn-small';
         }
         
@@ -227,7 +251,7 @@ function updateUIForUser(user) {
             userInfo.innerHTML = `
                 <div class="user-display">
                     <span class="user-name">${escapeHtml(user.name || user.username)}</span>
-                    <span class="user-email">${escapeHtml(user.username)}</span>
+                    <span class="user-email">${escapeHtml(user.email || user.username)}</span>
                 </div>
             `;
             userInfo.style.display = 'block';
@@ -235,7 +259,11 @@ function updateUIForUser(user) {
     } else {
         // User is signed out
         if (authButton) {
-            authButton.textContent = 'Sign in with Microsoft';
+            if (USE_EMAIL_AUTH) {
+                authButton.textContent = 'Sign In';
+            } else {
+                authButton.textContent = 'Sign in with Microsoft';
+            }
             authButton.onclick = signIn;
             authButton.className = 'btn btn-primary btn-small';
         }
@@ -243,6 +271,43 @@ function updateUIForUser(user) {
         if (userInfo) {
             userInfo.style.display = 'none';
         }
+    }
+}
+
+// Simple email-based sign in
+async function signInWithEmail(email) {
+    try {
+        if (!email || !email.trim()) {
+            showToast('Please enter your email address', 'error', 3000);
+            return false;
+        }
+        
+        // Basic email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email.trim())) {
+            showToast('Please enter a valid email address', 'error', 3000);
+            return false;
+        }
+        
+        // Store user info
+        currentUser = {
+            username: email.trim(),
+            name: email.trim().split('@')[0], // Use part before @ as name
+            email: email.trim()
+        };
+        
+        // Save to sessionStorage
+        sessionStorage.setItem('loggedInUserEmail', email.trim());
+        
+        updateUIForUser(currentUser);
+        allowAccess();
+        
+        showToast(`Welcome, ${currentUser.name}!`, 'success', 3000);
+        return true;
+    } catch (error) {
+        console.error('Email sign in error:', error);
+        showToast('Sign in failed: ' + error.message, 'error', 5000);
+        return false;
     }
 }
 
@@ -264,29 +329,77 @@ function blockAccessUntilLogin() {
         loginScreen = document.createElement('div');
         loginScreen.id = 'loginRequiredScreen';
         loginScreen.className = 'role-selection-screen';
-        loginScreen.innerHTML = `
-            <div class="role-selection-card">
-                <h1>Stock Take Management System</h1>
-                <p class="subtitle">Please sign in with Microsoft to continue</p>
-                <button id="loginRequiredButton" class="btn btn-primary btn-large" style="margin-top: 2rem; padding: 1rem 2rem; font-size: 1.1rem;">
-                    Sign in with Microsoft
-                </button>
-                <p style="margin-top: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
-                    You must be authenticated to access this application
-                </p>
-            </div>
-        `;
+        
+        if (USE_EMAIL_AUTH) {
+            // Email-based login form
+            loginScreen.innerHTML = `
+                <div class="role-selection-card">
+                    <h1>Stock Take Management System</h1>
+                    <p class="subtitle">Enter your email address to continue</p>
+                    <form id="emailLoginForm" style="margin-top: 2rem; width: 100%; max-width: 400px;">
+                        <input 
+                            type="email" 
+                            id="emailInput" 
+                            placeholder="your.email@example.com" 
+                            required
+                            autocomplete="email"
+                            style="width: 100%; padding: 1rem; font-size: 1rem; border: 2px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); margin-bottom: 1rem;"
+                        />
+                        <button type="submit" class="btn btn-primary btn-large" style="width: 100%; padding: 1rem 2rem; font-size: 1.1rem;">
+                            Continue
+                        </button>
+                    </form>
+                    <p style="margin-top: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                        You must be authenticated to access this application
+                    </p>
+                </div>
+            `;
+        } else {
+            // Microsoft authentication button
+            loginScreen.innerHTML = `
+                <div class="role-selection-card">
+                    <h1>Stock Take Management System</h1>
+                    <p class="subtitle">Please sign in with Microsoft to continue</p>
+                    <button id="loginRequiredButton" class="btn btn-primary btn-large" style="margin-top: 2rem; padding: 1rem 2rem; font-size: 1.1rem;">
+                        Sign in with Microsoft
+                    </button>
+                    <p style="margin-top: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                        You must be authenticated to access this application
+                    </p>
+                </div>
+            `;
+        }
+        
         document.body.appendChild(loginScreen);
         
-        // Add click handler
-        const loginBtn = document.getElementById('loginRequiredButton');
-        if (loginBtn) {
-            loginBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('Login required button clicked');
-                signIn();
-            });
+        if (USE_EMAIL_AUTH) {
+            // Handle email form submission
+            const emailForm = document.getElementById('emailLoginForm');
+            const emailInput = document.getElementById('emailInput');
+            
+            if (emailForm) {
+                emailForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    const email = emailInput.value.trim();
+                    await signInWithEmail(email);
+                });
+            }
+            
+            // Focus email input
+            if (emailInput) {
+                setTimeout(() => emailInput.focus(), 100);
+            }
+        } else {
+            // Handle Microsoft sign-in button
+            const loginBtn = document.getElementById('loginRequiredButton');
+            if (loginBtn) {
+                loginBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Login required button clicked');
+                    signIn();
+                });
+            }
         }
     }
     loginScreen.style.display = 'flex';
@@ -317,19 +430,38 @@ window.allowAccess = allowAccess;
 
 // Initialize auth on page load
 document.addEventListener('DOMContentLoaded', async () => {
-    // Always require authentication
-    // Check if MSAL is configured
-    if (CONFIG && CONFIG.msal && CONFIG.msal.clientId && CONFIG.msal.clientId !== 'YOUR_CLIENT_ID_HERE') {
-        await initMSAL();
-    } else {
-        console.log('Microsoft authentication not configured. Set CLIENT_ID in config.js');
-        // Still block access even if not configured
-        blockAccessUntilLogin();
-        const loginBtn = document.getElementById('loginRequiredButton');
-        if (loginBtn) {
-            loginBtn.onclick = () => {
-                showToast('Please configure Microsoft authentication first. See MICROSOFT-AUTH-SETUP.md', 'error', 6000);
+    if (USE_EMAIL_AUTH) {
+        // Check if user is already logged in via email
+        const savedEmail = sessionStorage.getItem('loggedInUserEmail');
+        if (savedEmail) {
+            currentUser = {
+                username: savedEmail,
+                name: savedEmail.split('@')[0],
+                email: savedEmail
             };
+            updateUIForUser(currentUser);
+            // Don't block access, allow role selection
+            allowAccess();
+        } else {
+            // No saved email, block access
+            blockAccessUntilLogin();
+        }
+    } else {
+        // Microsoft authentication
+        // Always require authentication
+        // Check if MSAL is configured
+        if (CONFIG && CONFIG.msal && CONFIG.msal.clientId && CONFIG.msal.clientId !== 'YOUR_CLIENT_ID_HERE') {
+            await initMSAL();
+        } else {
+            console.log('Microsoft authentication not configured. Set CLIENT_ID in config.js');
+            // Still block access even if not configured
+            blockAccessUntilLogin();
+            const loginBtn = document.getElementById('loginRequiredButton');
+            if (loginBtn) {
+                loginBtn.onclick = () => {
+                    showToast('Please configure Microsoft authentication first. See MICROSOFT-AUTH-SETUP.md', 'error', 6000);
+                };
+            }
         }
     }
 });

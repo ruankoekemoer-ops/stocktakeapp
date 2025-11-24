@@ -983,6 +983,405 @@ export default {
         });
       }
 
+      // ========== MANAGER-COMPANY ACCESS ENDPOINTS ==========
+      if (path === '/api/manager-company-access' && request.method === 'GET') {
+        try {
+          const url = new URL(request.url);
+          const managerId = url.searchParams.get('manager_id');
+          const companyId = url.searchParams.get('company_id');
+
+          let query = `
+            SELECT 
+              mca.*,
+              m.manager_name,
+              c.company_name
+            FROM manager_company_access mca
+            LEFT JOIN warehouse_managers m ON mca.manager_id = m.id
+            LEFT JOIN companies c ON mca.company_id = c.id
+          `;
+          const params = [];
+
+          if (managerId) {
+            query += ' WHERE mca.manager_id = ?';
+            params.push(parseInt(managerId));
+          }
+          if (companyId) {
+            query += managerId ? ' AND mca.company_id = ?' : ' WHERE mca.company_id = ?';
+            params.push(parseInt(companyId));
+          }
+
+          query += ' ORDER BY mca.created_at DESC';
+
+          const result = await env.DB.prepare(query).bind(...params).all();
+          return new Response(JSON.stringify(result.results || []), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (error) {
+          return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      if (path === '/api/manager-company-access' && request.method === 'POST') {
+        try {
+          const body = await request.json();
+          const { manager_id, company_id } = body;
+
+          if (!manager_id || !company_id) {
+            return new Response(JSON.stringify({ error: 'manager_id and company_id are required' }), {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          // Check if access already exists
+          const existing = await env.DB.prepare(
+            'SELECT id FROM manager_company_access WHERE manager_id = ? AND company_id = ?'
+          )
+            .bind(parseInt(manager_id), parseInt(company_id))
+            .first();
+
+          if (existing) {
+            return new Response(JSON.stringify({ error: 'Access already exists' }), {
+              status: 409,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          const result = await env.DB.prepare(
+            `INSERT INTO manager_company_access (manager_id, company_id, created_at, updated_at)
+             VALUES (?, ?, datetime('now'), datetime('now'))`
+          )
+            .bind(parseInt(manager_id), parseInt(company_id))
+            .run();
+
+          const newAccess = await env.DB.prepare(
+            `SELECT 
+              mca.*,
+              m.manager_name,
+              c.company_name
+             FROM manager_company_access mca
+             LEFT JOIN warehouse_managers m ON mca.manager_id = m.id
+             LEFT JOIN companies c ON mca.company_id = c.id
+             WHERE mca.id = ?`
+          )
+            .bind(result.meta.last_row_id)
+            .first();
+
+          return new Response(JSON.stringify({ item: newAccess }), {
+            status: 201,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (error) {
+          return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      if (path.startsWith('/api/manager-company-access/') && request.method === 'DELETE') {
+        try {
+          const id = path.split('/').pop();
+          const result = await env.DB.prepare('DELETE FROM manager_company_access WHERE id = ?')
+            .bind(parseInt(id))
+            .run();
+
+          if (result.meta.changes === 0) {
+            return new Response(JSON.stringify({ error: 'Access not found' }), {
+              status: 404,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          return new Response(JSON.stringify({ success: true }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (error) {
+          return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      // ========== COUNTER-COMPANY ACCESS ENDPOINTS ==========
+      if (path === '/api/counter-company-access' && request.method === 'GET') {
+        try {
+          const url = new URL(request.url);
+          const counterEmail = url.searchParams.get('counter_email');
+          const companyId = url.searchParams.get('company_id');
+
+          let query = `
+            SELECT 
+              cca.*,
+              c.company_name
+            FROM counter_company_access cca
+            LEFT JOIN companies c ON cca.company_id = c.id
+          `;
+          const params = [];
+
+          if (counterEmail) {
+            query += ' WHERE cca.counter_email = ?';
+            params.push(counterEmail);
+          }
+          if (companyId) {
+            query += counterEmail ? ' AND cca.company_id = ?' : ' WHERE cca.company_id = ?';
+            params.push(parseInt(companyId));
+          }
+
+          query += ' ORDER BY cca.created_at DESC';
+
+          const result = await env.DB.prepare(query).bind(...params).all();
+          return new Response(JSON.stringify(result.results || []), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (error) {
+          return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      if (path === '/api/counter-company-access' && request.method === 'POST') {
+        try {
+          const body = await request.json();
+          const { counter_email, company_id } = body;
+
+          if (!counter_email || !company_id) {
+            return new Response(JSON.stringify({ error: 'counter_email and company_id are required' }), {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          // Validate email format
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(counter_email)) {
+            return new Response(JSON.stringify({ error: 'Invalid email format' }), {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          // Check if access already exists
+          const existing = await env.DB.prepare(
+            'SELECT id FROM counter_company_access WHERE counter_email = ? AND company_id = ?'
+          )
+            .bind(counter_email, parseInt(company_id))
+            .first();
+
+          if (existing) {
+            return new Response(JSON.stringify({ error: 'Access already exists' }), {
+              status: 409,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          const result = await env.DB.prepare(
+            `INSERT INTO counter_company_access (counter_email, company_id, created_at, updated_at)
+             VALUES (?, ?, datetime('now'), datetime('now'))`
+          )
+            .bind(counter_email, parseInt(company_id))
+            .run();
+
+          const newAccess = await env.DB.prepare(
+            `SELECT 
+              cca.*,
+              c.company_name
+             FROM counter_company_access cca
+             LEFT JOIN companies c ON cca.company_id = c.id
+             WHERE cca.id = ?`
+          )
+            .bind(result.meta.last_row_id)
+            .first();
+
+          return new Response(JSON.stringify({ item: newAccess }), {
+            status: 201,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (error) {
+          return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      if (path.startsWith('/api/counter-company-access/') && request.method === 'DELETE') {
+        try {
+          const id = path.split('/').pop();
+          const result = await env.DB.prepare('DELETE FROM counter_company_access WHERE id = ?')
+            .bind(parseInt(id))
+            .run();
+
+          if (result.meta.changes === 0) {
+            return new Response(JSON.stringify({ error: 'Access not found' }), {
+              status: 404,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          return new Response(JSON.stringify({ success: true }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (error) {
+          return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      // ========== ITEMS CATALOG ==========
+      if (path === '/api/items-catalog' && request.method === 'GET') {
+        try {
+          const stockCode = url.searchParams.get('stock_code');
+          
+          if (stockCode) {
+            // Lookup by stock code
+            const item = await env.DB.prepare(
+              'SELECT * FROM items_catalog WHERE stock_code = ?'
+            ).bind(stockCode).first();
+            
+            if (!item) {
+              return new Response(JSON.stringify({ error: 'Item not found' }), {
+                status: 404,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              });
+            }
+            
+            return new Response(JSON.stringify(item), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          } else {
+            // Get all items
+            const result = await env.DB.prepare(
+              'SELECT * FROM items_catalog ORDER BY stock_code'
+            ).all();
+            return new Response(JSON.stringify(result.results || []), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        } catch (error) {
+          return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      if (path === '/api/items-catalog' && request.method === 'POST') {
+        try {
+          const body = await request.json();
+          const { stock_code, item_name, requires_serial_number } = body;
+
+          if (!stock_code || !item_name) {
+            return new Response(JSON.stringify({ error: 'stock_code and item_name are required' }), {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          const result = await env.DB.prepare(
+            'INSERT INTO items_catalog (stock_code, item_name, requires_serial_number) VALUES (?, ?, ?)'
+          ).bind(stock_code, item_name, requires_serial_number ? 1 : 0).run();
+
+          const item = await env.DB.prepare(
+            'SELECT * FROM items_catalog WHERE id = ?'
+          ).bind(result.meta.last_row_id).first();
+
+          return new Response(JSON.stringify({ message: 'Item created', item }), {
+            status: 201,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (error) {
+          if (error.message.includes('UNIQUE constraint')) {
+            return new Response(JSON.stringify({ error: 'Item with this stock code already exists' }), {
+              status: 409,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+          return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      if (path.startsWith('/api/items-catalog/') && request.method === 'PUT') {
+        try {
+          const id = path.split('/').pop();
+          const body = await request.json();
+          const { stock_code, item_name, requires_serial_number } = body;
+
+          if (!stock_code || !item_name) {
+            return new Response(JSON.stringify({ error: 'stock_code and item_name are required' }), {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          await env.DB.prepare(
+            'UPDATE items_catalog SET stock_code = ?, item_name = ?, requires_serial_number = ?, updated_at = datetime("now") WHERE id = ?'
+          ).bind(stock_code, item_name, requires_serial_number ? 1 : 0, parseInt(id)).run();
+
+          const item = await env.DB.prepare(
+            'SELECT * FROM items_catalog WHERE id = ?'
+          ).bind(parseInt(id)).first();
+
+          if (!item) {
+            return new Response(JSON.stringify({ error: 'Item not found' }), {
+              status: 404,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          return new Response(JSON.stringify({ message: 'Item updated', item }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (error) {
+          if (error.message.includes('UNIQUE constraint')) {
+            return new Response(JSON.stringify({ error: 'Item with this stock code already exists' }), {
+              status: 409,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+          return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      if (path.startsWith('/api/items-catalog/') && request.method === 'DELETE') {
+        try {
+          const id = path.split('/').pop();
+          const result = await env.DB.prepare('DELETE FROM items_catalog WHERE id = ?')
+            .bind(parseInt(id))
+            .run();
+
+          if (result.meta.changes === 0) {
+            return new Response(JSON.stringify({ error: 'Item not found' }), {
+              status: 404,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          return new Response(JSON.stringify({ success: true }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (error) {
+          return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
       // Health check / API info
       if (path === '/api' || path === '/api/') {
         return new Response(JSON.stringify({
@@ -995,6 +1394,7 @@ export default {
             'Bin Locations': 'GET/POST /api/bin-locations, PUT/DELETE /api/bin-locations/:id',
             'Managers': 'GET/POST /api/managers, PUT/DELETE /api/managers/:id',
             'Stock Items': 'GET/POST /api/items, PUT/DELETE /api/items/:id',
+            'Items Catalog': 'GET/POST /api/items-catalog, PUT/DELETE /api/items-catalog/:id, GET /api/items-catalog?stock_code=XXX',
           },
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },

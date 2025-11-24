@@ -80,3 +80,32 @@ CREATE INDEX IF NOT EXISTS idx_stock_items_warehouse ON stock_items(warehouse_id
 CREATE INDEX IF NOT EXISTS idx_stock_items_company ON stock_items(company_id);
 CREATE INDEX IF NOT EXISTS idx_stock_items_bin ON stock_items(bin_location_id);
 CREATE INDEX IF NOT EXISTS idx_managers_warehouse ON warehouse_managers(warehouse_id);
+
+-- Manager-Company Access table (System Admin)
+CREATE TABLE IF NOT EXISTS manager_company_access (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    manager_id INTEGER NOT NULL,
+    company_id INTEGER NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (manager_id) REFERENCES warehouse_managers(id) ON DELETE CASCADE,
+    FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+    UNIQUE(manager_id, company_id)
+);
+
+-- Counter-Company Access table (System Admin)
+CREATE TABLE IF NOT EXISTS counter_company_access (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    counter_email TEXT NOT NULL,
+    company_id INTEGER NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+    UNIQUE(counter_email, company_id)
+);
+
+-- Create indexes for access tables
+CREATE INDEX IF NOT EXISTS idx_manager_access_manager ON manager_company_access(manager_id);
+CREATE INDEX IF NOT EXISTS idx_manager_access_company ON manager_company_access(company_id);
+CREATE INDEX IF NOT EXISTS idx_counter_access_email ON counter_company_access(counter_email);
+CREATE INDEX IF NOT EXISTS idx_counter_access_company ON counter_company_access(company_id);
