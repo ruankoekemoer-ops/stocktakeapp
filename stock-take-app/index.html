@@ -53,7 +53,7 @@
             <!-- App Header -->
             <header class="app-header" id="appHeader">
                 <div class="header-left">
-                    <button onclick="goHome()" class="btn-home" title="Home" style="margin-right: 1rem;">
+                    <button onclick="returnToRoleSelection()" class="btn-home" title="Home" style="margin-right: 1rem;">
                         <span style="font-size: 1.2rem;">🏠</span>
                     </button>
                     <div class="header-title" id="pageTitle">Stock Take</div>
@@ -624,5 +624,9 @@
     <script src="js/config.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/app.js"></script>
+
+    <button id="globalHomeButton" class="global-home-btn" onclick="returnToRoleSelection()" title="Back to role selection" style="display: none;">
+        🏠 Home
+    </button>
 </body>
 </html>

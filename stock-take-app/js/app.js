@@ -90,6 +90,7 @@ function selectRole(role) {
         
         roleSelectionScreen.style.display = 'none';
         mainApp.style.display = 'block';
+        updateGlobalHomeButtonVisibility(true);
         
         // Small delay to ensure DOM is ready
         setTimeout(() => {
@@ -106,6 +107,36 @@ if (typeof window !== 'undefined') {
     window.selectRole = selectRole;
     console.log('selectRole function registered on window');
 }
+
+function showRoleSelectionScreen() {
+    const roleScreen = document.getElementById('roleSelectionScreen');
+    const mainApp = document.getElementById('mainApp');
+    if (roleScreen) {
+        roleScreen.style.display = 'flex';
+        checkUserManagerStatus();
+    }
+    if (mainApp) {
+        mainApp.style.display = 'none';
+    }
+    updateGlobalHomeButtonVisibility(true);
+}
+window.showRoleSelectionScreen = showRoleSelectionScreen;
+
+function returnToRoleSelection() {
+    currentStockTake = null;
+    currentBinLocation = null;
+    currentBinItems = [];
+    showRoleSelectionScreen();
+}
+window.returnToRoleSelection = returnToRoleSelection;
+
+function updateGlobalHomeButtonVisibility(isLoggedIn) {
+    const btn = document.getElementById('globalHomeButton');
+    if (btn) {
+        btn.style.display = isLoggedIn ? 'flex' : 'none';
+    }
+}
+window.updateGlobalHomeButtonVisibility = updateGlobalHomeButtonVisibility;
 
 /**
  * Initialize app
@@ -227,6 +258,7 @@ function initializeApp(role) {
         
         // Ensure authenticated class is on body
         document.body.classList.add('authenticated');
+        updateGlobalHomeButtonVisibility(true);
         
         // Update UI based on role
         setRole(role, false); // Don't save (already saved)

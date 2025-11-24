@@ -340,6 +340,10 @@ function blockAccessUntilLogin() {
         mainApp.style.display = 'none';
     }
     
+    if (typeof updateGlobalHomeButtonVisibility === 'function') {
+        updateGlobalHomeButtonVisibility(false);
+    }
+    
     // Show login required screen
     let loginScreen = document.getElementById('loginRequiredScreen');
     if (!loginScreen) {
@@ -433,6 +437,10 @@ function allowAccess() {
     const roleSelectionScreen = document.getElementById('roleSelectionScreen');
     if (roleSelectionScreen) {
         roleSelectionScreen.style.display = 'flex';
+    }
+    
+    if (typeof updateGlobalHomeButtonVisibility === 'function') {
+        updateGlobalHomeButtonVisibility(true);
     }
 }
 
