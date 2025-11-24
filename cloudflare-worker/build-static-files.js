@@ -13,12 +13,14 @@ const stockTakeAppDir = path.join(baseDir, 'stock-take-app');
 // Read files
 const indexHtml = fs.readFileSync(path.join(stockTakeAppDir, 'index.html'), 'utf8');
 const appJs = fs.readFileSync(path.join(stockTakeAppDir, 'js', 'app.js'), 'utf8');
+const authJs = fs.readFileSync(path.join(stockTakeAppDir, 'js', 'auth.js'), 'utf8');
 const styleCss = fs.readFileSync(path.join(stockTakeAppDir, 'css', 'style.css'), 'utf8');
 
 // Update HTML to use absolute paths
 const indexHtmlFixed = indexHtml
   .replace('href="css/style.css"', 'href="/css/style.css"')
   .replace('src="js/config.js"', 'src="/js/config.js"')
+  .replace('src="js/auth.js"', 'src="/js/auth.js"')
   .replace('src="js/app.js"', 'src="/js/app.js"');
 
 // Generate config.js that uses same domain
@@ -45,6 +47,8 @@ const staticFilesContent = `/**
 export const indexHtml = ${JSON.stringify(indexHtmlFixed)};
 
 export const configJs = ${JSON.stringify(configJs)};
+
+export const authJs = ${JSON.stringify(authJs)};
 
 export const appJs = ${JSON.stringify(appJs)};
 

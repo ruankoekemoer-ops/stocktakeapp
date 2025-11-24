@@ -210,6 +210,36 @@ body {
     backdrop-filter: blur(10px);
 }
 
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.btn-home {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.5rem;
+    height: 2.5rem;
+}
+
+.btn-home:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-primary);
+    transform: scale(1.05);
+}
+
+.btn-home:active {
+    transform: scale(0.95);
+}
+
 .header-title {
     font-size: 1.25rem;
     font-weight: 600;
@@ -342,6 +372,11 @@ body {
     text-align: center;
     position: relative;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
 }
 
 .role-option-btn::before {
@@ -393,7 +428,7 @@ body {
 
 .role-option-btn h2 {
     color: var(--text-primary);
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
     font-size: 1.25rem;
     font-weight: 600;
     pointer-events: none;
@@ -403,6 +438,11 @@ body {
     color: var(--text-secondary);
     font-size: 0.9rem;
     pointer-events: none;
+    margin: 0;
+}
+
+.role-option-btn.disabled {
+    display: none;
 }
 
 /* Page Content */

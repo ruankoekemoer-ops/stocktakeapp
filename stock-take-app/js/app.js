@@ -16,8 +16,42 @@ let currentBinLocation = null;
 let currentBinItems = [];
 let qrScanner = null; // QR Code scanner instance
 
-// System Admin password (defined early so it's available everywhere)
-const ADMIN_PASSWORD = 'admin123'; // TODO: Change this to a secure password or use environment variable
+// System Admin auth token storage keys
+const ADMIN_TOKEN_STORAGE_KEY = 'adminAuthToken';
+const ADMIN_TOKEN_EXPIRY_KEY = 'adminAuthExpiry';
+const ALLOWED_MANAGER_EMAIL = 'rkoekemoer@masterdrilling.com';
+let adminSessionWarningShown = false;
+let managerRestrictionNotified = false;
+
+function getLoggedInUserEmail() {
+    let email = null;
+    if (typeof getCurrentUser === 'function') {
+        const user = getCurrentUser();
+        if (user) {
+            if (user.email) {
+                email = user.email;
+            } else if (user.username) {
+                email = user.username;
+            }
+        }
+    }
+    if (!email) {
+        const storedEmail = sessionStorage.getItem('loggedInUserEmail');
+        if (storedEmail) {
+            email = storedEmail;
+        }
+    }
+    return email ? email.toLowerCase() : null;
+}
+
+function isUserAllowedManager() {
+    const email = getLoggedInUserEmail();
+    return email === ALLOWED_MANAGER_EMAIL;
+}
+
+if (typeof window !== 'undefined') {
+    window.isUserAllowedManager = isUserAllowedManager;
+}
 
 // Define selectRole function immediately so it's available for onclick handlers
 function selectRole(role) {
@@ -35,6 +69,11 @@ function selectRole(role) {
         
         if (!role || (role !== 'counter' && role !== 'manager')) {
             console.error('Invalid role:', role);
+            return;
+        }
+        
+        if (role === 'manager' && !isUserAllowedManager()) {
+            showToast('You do not have manager access.', 'error', 4000);
             return;
         }
         
@@ -206,8 +245,8 @@ function initializeApp(role) {
             console.error('Error loading initial data:', error);
         });
         
-        // Load open stock takes if in counter mode
-        if (role === 'counter') {
+        // Load open stock takes for manager mode
+        if (role === 'manager') {
             loadOpenStockTakes();
         }
         
@@ -229,67 +268,21 @@ function initializeApp(role) {
 // Check if current user is a manager
 async function checkUserManagerStatus() {
     try {
-        // Get current user email
-        let userEmail = null;
-        if (typeof getCurrentUser === 'function') {
-            const user = getCurrentUser();
-            if (user && user.email) {
-                userEmail = user.email;
-            }
-        }
-        
-        // Also check sessionStorage for email auth
-        if (!userEmail) {
-            userEmail = sessionStorage.getItem('loggedInUserEmail');
-        }
-        
-        if (!userEmail) {
-            console.log('No user email found, hiding manager option');
-            hideManagerOption();
-            return;
-        }
-        
-        // Load all managers
-        const managersResponse = await fetch(`${CONFIG.apiUrl}/managers`);
-        if (!managersResponse.ok) {
-            console.log('Failed to load managers, hiding manager option');
-            hideManagerOption();
-            return;
-        }
-        
-        const allManagers = await managersResponse.json();
-        
-        // Find manager with matching email
-        const matchingManager = allManagers.find(m => 
-            m.email && m.email.toLowerCase() === userEmail.toLowerCase()
-        );
-        
-        if (!matchingManager) {
-            console.log('No manager found with email:', userEmail);
-            hideManagerOption();
-            return;
-        }
-        
-        // Check if this manager has any company access
-        const accessResponse = await fetch(`${CONFIG.apiUrl}/manager-company-access?manager_id=${matchingManager.id}`);
-        if (!accessResponse.ok) {
-            console.log('Failed to check manager access, hiding manager option');
-            hideManagerOption();
-            return;
-        }
-        
-        const accessList = await accessResponse.json();
-        
-        if (accessList && accessList.length > 0) {
-            console.log('User is a manager, showing manager option');
+        if (isUserAllowedManager()) {
             showManagerOption();
+            managerRestrictionNotified = false;
         } else {
-            console.log('Manager has no company access, hiding manager option');
             hideManagerOption();
+            if (currentRole === 'manager') {
+                setRole('counter', true);
+                if (!managerRestrictionNotified) {
+                    showToast('Manager access is restricted to authorized users. Switching to Counter mode.', 'warning', 4000);
+                    managerRestrictionNotified = true;
+                }
+            }
         }
     } catch (error) {
         console.error('Error checking manager status:', error);
-        // On error, hide manager option for security
         hideManagerOption();
     }
 }
@@ -299,32 +292,143 @@ function hideManagerOption() {
     if (managerBtn) {
         managerBtn.style.display = 'none';
     }
+    const managerCard = document.querySelector('.role-option-btn.manager-btn');
+    if (managerCard) {
+        managerCard.style.display = 'none';
+        managerCard.classList.add('disabled');
+        managerCard.setAttribute('aria-disabled', 'true');
+    }
 }
 
 function showManagerOption() {
     const managerBtn = document.getElementById('managerBtn');
     if (managerBtn) {
-        managerBtn.style.display = 'flex';
+        if (isUserAllowedManager()) {
+            managerBtn.style.display = 'flex';
+        } else {
+            managerBtn.style.display = 'none';
+        }
+    }
+    const managerCard = document.querySelector('.role-option-btn.manager-btn');
+    if (managerCard) {
+        if (isUserAllowedManager()) {
+            managerCard.style.display = 'flex';
+            managerCard.classList.remove('disabled');
+            managerCard.removeAttribute('aria-disabled');
+        } else {
+            managerCard.style.display = 'none';
+            managerCard.classList.add('disabled');
+            managerCard.setAttribute('aria-disabled', 'true');
+        }
     }
 }
 
 function switchRole() {
-    // Clear role and show role selection screen
+    // Clear role
     localStorage.removeItem('stockTakeRole');
+    
+    // Reset all state
+    currentStockTake = null;
+    currentBinLocation = null;
+    currentBinItems = [];
     
     const roleScreen = document.getElementById('roleSelectionScreen');
     const mainApp = document.getElementById('mainApp');
+    const loginScreen = document.getElementById('loginRequiredScreen');
     
-    if (roleScreen) roleScreen.style.display = 'flex';
-    if (mainApp) mainApp.style.display = 'none';
-    
-    // Re-check manager status when switching roles
-    checkUserManagerStatus();
+    // If we're on the role selection screen, do nothing (already there)
+    // If we're in the app, go back to role selection
+    if (mainApp && mainApp.style.display !== 'none') {
+        if (roleScreen) roleScreen.style.display = 'flex';
+        if (mainApp) mainApp.style.display = 'none';
+        
+        // Re-check manager status when switching roles
+        checkUserManagerStatus();
+    } else if (roleScreen && roleScreen.style.display !== 'none') {
+        // Already on role selection screen - do nothing or could log out
+        // For now, just ensure we're showing role selection
+        console.log('Already on role selection screen');
+    }
 }
 window.switchRole = switchRole;
 
+function goHome() {
+    // Reset to stock take tab and clear any current state
+    if (currentRole === 'counter') {
+        // For counter, reset to start screen
+        currentStockTake = null;
+        currentBinLocation = null;
+        currentBinItems = [];
+        
+        // Show counter start section
+        const counterStart = document.getElementById('counterStartSection');
+        const binLocation = document.getElementById('binLocationSection');
+        const itemScan = document.getElementById('itemScanSection');
+        const binItems = document.getElementById('binItemsSection');
+        
+        if (counterStart) counterStart.style.display = 'block';
+        if (binLocation) binLocation.style.display = 'none';
+        if (itemScan) itemScan.style.display = 'none';
+        if (binItems) binItems.style.display = 'none';
+        
+        // Clear inputs
+        const counterBinInput = document.getElementById('counterBinLocationInput');
+        if (counterBinInput) {
+            counterBinInput.value = '';
+            setTimeout(() => counterBinInput.focus(), 100);
+        }
+        
+        // Scroll to top
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+        // For manager, go to stock take tab
+        showTab('stocktake');
+        // Reset any scanning state
+        currentBinLocation = null;
+        currentBinItems = [];
+        updateStockTakeStatus();
+    }
+}
+window.goHome = goHome;
+
+function handleLogout() {
+    // Clear all app state
+    localStorage.removeItem('stockTakeRole');
+    clearAdminSession();
+    adminSessionWarningShown = false;
+    
+    currentStockTake = null;
+    currentBinLocation = null;
+    currentBinItems = [];
+    
+    // Call the auth signOut function
+    if (typeof signOut === 'function') {
+        signOut();
+    } else {
+        // Fallback if signOut not available
+        // Clear session storage
+        sessionStorage.removeItem('loggedInUserEmail');
+        
+        // Hide app and role selection
+        const mainApp = document.getElementById('mainApp');
+        const roleScreen = document.getElementById('roleSelectionScreen');
+        
+        if (mainApp) mainApp.style.display = 'none';
+        if (roleScreen) roleScreen.style.display = 'none';
+        
+        // Show login screen
+        if (typeof blockAccessUntilLogin === 'function') {
+            blockAccessUntilLogin();
+        }
+    }
+}
+window.handleLogout = handleLogout;
+
 // ========== ROLE MANAGEMENT ==========
 function setRole(role, saveToStorage = true) {
+    if (role === 'manager' && !isUserAllowedManager()) {
+        role = 'counter';
+    }
     currentRole = role;
     
     if (saveToStorage) {
@@ -504,13 +608,16 @@ function buildNavigation(role) {
 
 function showTab(tabName, clickedElement) {
     // Check if tab is allowed for current role
-    if (tabName === 'setup' && currentRole === 'counter') {
-        showToast('Setup is only available in Manager mode', 'warning', 3000);
-        return;
-    }
-    if (tabName === 'view' && currentRole === 'counter') {
-        showToast('View Items is only available in Manager mode', 'warning', 3000);
-        return;
+    if (currentRole === 'counter') {
+        const restrictedTabs = {
+            'setup': 'Setup is only available in Manager mode',
+            'view': 'View Items is only available in Manager mode',
+            'openStockTakes': 'Open Stock Takes are only available in Manager mode'
+        };
+        if (restrictedTabs[tabName]) {
+            showToast(restrictedTabs[tabName], 'warning', 3000);
+            return;
+        }
     }
     
     // Hide ALL tabs completely
@@ -872,15 +979,16 @@ async function handleCompanySubmit(event) {
         return;
     }
     
+    const companyCode = document.getElementById('companyCode');
+    if (!companyCode || !companyCode.value.trim()) {
+        showToast('Company code is required', 'error', 3000);
+        return;
+    }
+    
     const formData = {
+        company_code: companyCode.value.trim(),
         company_name: companyName.value.trim(),
     };
-    
-    // Add company_code if it exists (for backward compatibility)
-    const companyCode = document.getElementById('companyCode');
-    if (companyCode) {
-        formData.company_code = companyCode.value.trim();
-    }
     
     try {
         let response;
@@ -1119,6 +1227,7 @@ function openAddWarehouseModal() {
     const modal = document.getElementById('warehouseModal');
     const form = document.getElementById('warehouseForm');
     const title = document.getElementById('warehouseModalTitle');
+    const companySelect = document.getElementById('warehouseCompany');
     
     if (modal && form && title) {
         title.textContent = 'Add Warehouse';
@@ -1127,11 +1236,14 @@ function openAddWarehouseModal() {
         const idField = document.getElementById('editWarehouseId');
         if (idField) idField.remove();
         
-        // Pre-select the current company if one is selected (if there's a company field)
-        if (selectedCompanyId) {
-            const companyField = document.getElementById('warehouseCompany');
-            if (companyField) {
-                companyField.value = selectedCompanyId;
+        // Populate company dropdown
+        if (companySelect) {
+            companySelect.innerHTML = '<option value="">Select Company</option>' + 
+                companies.map(c => `<option value="${c.id}">${escapeHtml(c.company_name)}</option>`).join('');
+            
+            // Pre-select the current company if one is selected
+            if (selectedCompanyId) {
+                companySelect.value = selectedCompanyId;
             }
         }
         
@@ -1151,27 +1263,71 @@ function openEditWarehouseModal(id) {
     const warehouse = warehouses.find(w => w.id === id);
     if (!warehouse) return;
     
-    const companySelect = document.getElementById('editWarehouseCompany');
-    companySelect.innerHTML = '<option value="">Select Company</option>' + 
-        companies.map(c => `<option value="${c.id}">${escapeHtml(c.company_name)}</option>`).join('');
+    const modal = document.getElementById('warehouseModal');
+    const form = document.getElementById('warehouseForm');
+    const title = document.getElementById('warehouseModalTitle');
+    const companySelect = document.getElementById('warehouseCompany');
     
-    document.getElementById('editWarehouseId').value = id;
-    document.getElementById('editWarehouseCode').value = warehouse.warehouse_code;
-    document.getElementById('editWarehouseName').value = warehouse.warehouse_name;
-    document.getElementById('editWarehouseCompany').value = warehouse.company_id;
-    document.getElementById('editWarehouseAddress').value = warehouse.address || '';
-    document.getElementById('editWarehouseModal').style.display = 'flex';
+    if (!modal || !form || !title) return;
+    
+    title.textContent = 'Edit Warehouse';
+    
+    // Add hidden ID field if it doesn't exist
+    let idField = document.getElementById('editWarehouseId');
+    if (!idField) {
+        idField = document.createElement('input');
+        idField.type = 'hidden';
+        idField.id = 'editWarehouseId';
+        form.appendChild(idField);
+    }
+    idField.value = id;
+    
+    // Populate company dropdown
+    if (companySelect) {
+        companySelect.innerHTML = '<option value="">Select Company</option>' + 
+            companies.map(c => `<option value="${c.id}">${escapeHtml(c.company_name)}</option>`).join('');
+        companySelect.value = warehouse.company_id;
+    }
+    
+    // Set form values
+    const warehouseCode = document.getElementById('warehouseCode');
+    const warehouseName = document.getElementById('warehouseName');
+    const warehouseAddress = document.getElementById('warehouseAddress');
+    
+    if (warehouseCode) warehouseCode.value = warehouse.warehouse_code || '';
+    if (warehouseName) warehouseName.value = warehouse.warehouse_name || '';
+    if (warehouseAddress) warehouseAddress.value = warehouse.address || '';
+    
+    modal.style.display = 'flex';
 }
 window.openEditWarehouseModal = openEditWarehouseModal;
 
 
 async function handleAddWarehouse(event) {
     event.preventDefault();
+    
+    const warehouseCode = document.getElementById('warehouseCode');
+    const warehouseName = document.getElementById('warehouseName');
+    const warehouseCompany = document.getElementById('warehouseCompany');
+    
+    if (!warehouseCode || !warehouseCode.value.trim()) {
+        showToast('Warehouse code is required', 'error', 3000);
+        return;
+    }
+    if (!warehouseName || !warehouseName.value.trim()) {
+        showToast('Warehouse name is required', 'error', 3000);
+        return;
+    }
+    if (!warehouseCompany || !warehouseCompany.value) {
+        showToast('Company is required', 'error', 3000);
+        return;
+    }
+    
     const formData = {
-        warehouse_code: document.getElementById('addWarehouseCode').value.trim(),
-        warehouse_name: document.getElementById('addWarehouseName').value.trim(),
-        company_id: parseInt(document.getElementById('addWarehouseCompany').value),
-        address: document.getElementById('addWarehouseAddress').value.trim() || null,
+        warehouse_code: warehouseCode.value.trim(),
+        warehouse_name: warehouseName.value.trim(),
+        company_id: parseInt(warehouseCompany.value),
+        address: document.getElementById('warehouseAddress')?.value.trim() || null,
     };
     
     try {
@@ -1198,11 +1354,29 @@ window.handleAddWarehouse = handleAddWarehouse;
 async function handleEditWarehouse(event) {
     event.preventDefault();
     const id = document.getElementById('editWarehouseId').value;
+    
+    const warehouseCode = document.getElementById('warehouseCode');
+    const warehouseName = document.getElementById('warehouseName');
+    const warehouseCompany = document.getElementById('warehouseCompany');
+    
+    if (!warehouseCode || !warehouseCode.value.trim()) {
+        showToast('Warehouse code is required', 'error', 3000);
+        return;
+    }
+    if (!warehouseName || !warehouseName.value.trim()) {
+        showToast('Warehouse name is required', 'error', 3000);
+        return;
+    }
+    if (!warehouseCompany || !warehouseCompany.value) {
+        showToast('Company is required', 'error', 3000);
+        return;
+    }
+    
     const formData = {
-        warehouse_code: document.getElementById('editWarehouseCode').value.trim(),
-        warehouse_name: document.getElementById('editWarehouseName').value.trim(),
-        company_id: parseInt(document.getElementById('editWarehouseCompany').value),
-        address: document.getElementById('editWarehouseAddress').value.trim() || null,
+        warehouse_code: warehouseCode.value.trim(),
+        warehouse_name: warehouseName.value.trim(),
+        company_id: parseInt(warehouseCompany.value),
+        address: document.getElementById('warehouseAddress')?.value.trim() || null,
     };
     
     try {
@@ -1225,6 +1399,19 @@ async function handleEditWarehouse(event) {
     }
 }
 window.handleEditWarehouse = handleEditWarehouse;
+
+async function handleWarehouseSubmit(event) {
+    event.preventDefault();
+    const idField = document.getElementById('editWarehouseId');
+    const isEdit = idField && idField.value;
+    
+    if (isEdit) {
+        await handleEditWarehouse(event);
+    } else {
+        await handleAddWarehouse(event);
+    }
+}
+window.handleWarehouseSubmit = handleWarehouseSubmit;
 
 function editWarehouse(id) {
     openWarehouseModal(id);
@@ -1395,31 +1582,70 @@ function openEditBinLocationModal(id) {
     const bin = binLocations.find(b => b.id === id);
     if (!bin) return;
     
-    const warehouseSelect = document.getElementById('editBinLocationWarehouse');
+    const modal = document.getElementById('binLocationModal');
+    const form = document.getElementById('binLocationForm');
+    const title = document.getElementById('binLocationModalTitle');
+    const warehouseSelect = document.getElementById('binWarehouse');
+    
+    if (!modal || !form || !title || !warehouseSelect) return;
+    
+    title.textContent = 'Edit Bin Location';
+    
+    // Add hidden ID field if it doesn't exist
+    let idField = document.getElementById('editBinLocationId');
+    if (!idField) {
+        idField = document.createElement('input');
+        idField.type = 'hidden';
+        idField.id = 'editBinLocationId';
+        form.appendChild(idField);
+    }
+    idField.value = id;
+    
+    // Populate warehouse dropdown
     warehouseSelect.innerHTML = '<option value="">Select Warehouse</option>' + 
         warehouses.map(w => `<option value="${w.id}">${escapeHtml(w.warehouse_name)}</option>`).join('');
+    warehouseSelect.value = bin.warehouse_id;
     
-    document.getElementById('editBinLocationId').value = id;
-    document.getElementById('editBinLocationCode').value = bin.bin_code;
-    document.getElementById('editBinLocationName').value = bin.bin_name || '';
-    document.getElementById('editBinLocationWarehouse').value = bin.warehouse_id;
-    document.getElementById('editBinLocationAisle').value = bin.aisle || '';
-    document.getElementById('editBinLocationShelf').value = bin.shelf || '';
-    document.getElementById('editBinLocationLevel').value = bin.level || '';
-    document.getElementById('editBinLocationModal').style.display = 'flex';
+    // Set form values
+    const binCode = document.getElementById('binCode');
+    const binName = document.getElementById('binName');
+    const binAisle = document.getElementById('binAisle');
+    const binShelf = document.getElementById('binShelf');
+    const binLevel = document.getElementById('binLevel');
+    
+    if (binCode) binCode.value = bin.bin_code || '';
+    if (binName) binName.value = bin.bin_name || '';
+    if (binAisle) binAisle.value = bin.aisle || '';
+    if (binShelf) binShelf.value = bin.shelf || '';
+    if (binLevel) binLevel.value = bin.level || '';
+    
+    modal.style.display = 'flex';
 }
 window.openEditBinLocationModal = openEditBinLocationModal;
 
 
 async function handleAddBinLocation(event) {
     event.preventDefault();
+    
+    const binCode = document.getElementById('binCode');
+    const binWarehouse = document.getElementById('binWarehouse');
+    
+    if (!binCode || !binCode.value.trim()) {
+        showToast('Bin code is required', 'error', 3000);
+        return;
+    }
+    if (!binWarehouse || !binWarehouse.value) {
+        showToast('Warehouse is required', 'error', 3000);
+        return;
+    }
+    
     const formData = {
-        bin_code: document.getElementById('addBinLocationCode').value.trim(),
-        bin_name: document.getElementById('addBinLocationName').value.trim() || null,
-        warehouse_id: parseInt(document.getElementById('addBinLocationWarehouse').value),
-        aisle: document.getElementById('addBinLocationAisle').value.trim() || null,
-        shelf: document.getElementById('addBinLocationShelf').value.trim() || null,
-        level: document.getElementById('addBinLocationLevel').value.trim() || null,
+        bin_code: binCode.value.trim(),
+        bin_name: document.getElementById('binName')?.value.trim() || null,
+        warehouse_id: parseInt(binWarehouse.value),
+        aisle: document.getElementById('binAisle')?.value.trim() || null,
+        shelf: document.getElementById('binShelf')?.value.trim() || null,
+        level: document.getElementById('binLevel')?.value.trim() || null,
     };
     
     try {
@@ -1444,13 +1670,26 @@ window.handleAddBinLocation = handleAddBinLocation;
 async function handleEditBinLocation(event) {
     event.preventDefault();
     const id = document.getElementById('editBinLocationId').value;
+    
+    const binCode = document.getElementById('binCode');
+    const binWarehouse = document.getElementById('binWarehouse');
+    
+    if (!binCode || !binCode.value.trim()) {
+        showToast('Bin code is required', 'error', 3000);
+        return;
+    }
+    if (!binWarehouse || !binWarehouse.value) {
+        showToast('Warehouse is required', 'error', 3000);
+        return;
+    }
+    
     const formData = {
-        bin_code: document.getElementById('editBinLocationCode').value.trim(),
-        bin_name: document.getElementById('editBinLocationName').value.trim() || null,
-        warehouse_id: parseInt(document.getElementById('editBinLocationWarehouse').value),
-        aisle: document.getElementById('editBinLocationAisle').value.trim() || null,
-        shelf: document.getElementById('editBinLocationShelf').value.trim() || null,
-        level: document.getElementById('editBinLocationLevel').value.trim() || null,
+        bin_code: binCode.value.trim(),
+        bin_name: document.getElementById('binName')?.value.trim() || null,
+        warehouse_id: parseInt(binWarehouse.value),
+        aisle: document.getElementById('binAisle')?.value.trim() || null,
+        shelf: document.getElementById('binShelf')?.value.trim() || null,
+        level: document.getElementById('binLevel')?.value.trim() || null,
     };
     
     try {
@@ -1471,6 +1710,19 @@ async function handleEditBinLocation(event) {
     }
 }
 window.handleEditBinLocation = handleEditBinLocation;
+
+async function handleBinLocationSubmit(event) {
+    event.preventDefault();
+    const idField = document.getElementById('editBinLocationId');
+    const isEdit = idField && idField.value;
+    
+    if (isEdit) {
+        await handleEditBinLocation(event);
+    } else {
+        await handleAddBinLocation(event);
+    }
+}
+window.handleBinLocationSubmit = handleBinLocationSubmit;
 
 function editBinLocation(id) {
     openBinLocationModal(id);
@@ -1682,32 +1934,53 @@ function openAddManagerModal() {
     const modal = document.getElementById('managerModal');
     const form = document.getElementById('managerForm');
     const title = document.getElementById('managerModalTitle');
-    const warehouseSelect = document.getElementById('managerWarehouse');
     
-    if (modal && form && title && warehouseSelect) {
+    if (modal && form && title) {
         title.textContent = 'Add Manager';
         form.reset();
         // Remove any hidden ID field if it exists
         const idField = document.getElementById('editManagerId');
         if (idField) idField.remove();
         
-        // Filter warehouses by selected company
-        let filteredWarehouses = warehouses;
-        if (selectedCompanyId) {
-            filteredWarehouses = warehouses.filter(w => w.company_id === selectedCompanyId);
-        }
-        
-        warehouseSelect.innerHTML = '<option value="">Select Warehouse</option>' + 
-            filteredWarehouses.map(w => `<option value="${w.id}">${escapeHtml(w.warehouse_name)}</option>`).join('');
+        populateManagerWarehouseOptions();
         
         modal.style.display = 'flex';
     }
 }
 window.openAddManagerModal = openAddManagerModal;
 
+function populateManagerWarehouseOptions(selectedWarehouseId = null) {
+    const warehouseSelect = document.getElementById('managerWarehouse');
+    if (!warehouseSelect) return;
+    
+    let filteredWarehouses = warehouses;
+    if (selectedCompanyId) {
+        filteredWarehouses = warehouses.filter(w => w.company_id === selectedCompanyId);
+    }
+    
+    if (selectedWarehouseId && !filteredWarehouses.some(w => w.id === selectedWarehouseId)) {
+        const selectedWarehouse = warehouses.find(w => w.id === selectedWarehouseId);
+        if (selectedWarehouse) {
+            filteredWarehouses = [...filteredWarehouses, selectedWarehouse];
+        }
+    }
+    
+    filteredWarehouses.sort((a, b) => a.warehouse_name.localeCompare(b.warehouse_name));
+    
+    warehouseSelect.innerHTML = '<option value="">Select Warehouse</option>' + 
+        filteredWarehouses.map(w => `<option value="${w.id}">${escapeHtml(w.warehouse_name)}</option>`).join('');
+    
+    if (selectedWarehouseId) {
+        warehouseSelect.value = selectedWarehouseId;
+    }
+}
+
 function closeManagerModal() {
     const modal = document.getElementById('managerModal');
     if (modal) modal.style.display = 'none';
+    
+    const idField = document.getElementById('editManagerId');
+    if (idField) idField.remove();
 }
 window.closeManagerModal = closeManagerModal;
 
@@ -1715,39 +1988,82 @@ function openEditManagerModal(id) {
     const manager = managers.find(m => m.id === id);
     if (!manager) return;
     
-    const warehouseSelect = document.getElementById('editManagerWarehouse');
-    warehouseSelect.innerHTML = '<option value="">Select Warehouse</option>' + 
-        warehouses.map(w => `<option value="${w.id}">${escapeHtml(w.warehouse_name)}</option>`).join('');
+    const modal = document.getElementById('managerModal');
+    const form = document.getElementById('managerForm');
+    const title = document.getElementById('managerModalTitle');
+    const nameInput = document.getElementById('managerName');
+    const emailInput = document.getElementById('managerEmail');
+    const phoneInput = document.getElementById('managerPhone');
+    const warehouseSelect = document.getElementById('managerWarehouse');
     
-    document.getElementById('editManagerId').value = id;
-    document.getElementById('editManagerName').value = manager.manager_name;
-    document.getElementById('editManagerWarehouse').value = manager.warehouse_id;
-    document.getElementById('editManagerEmail').value = manager.email || '';
-    document.getElementById('editManagerPhone').value = manager.phone || '';
-    document.getElementById('editManagerModal').style.display = 'flex';
+    if (!modal || !form || !title || !nameInput || !warehouseSelect) return;
+    
+    title.textContent = 'Edit Manager';
+    
+    let idField = document.getElementById('editManagerId');
+    if (!idField) {
+        idField = document.createElement('input');
+        idField.type = 'hidden';
+        idField.id = 'editManagerId';
+        form.appendChild(idField);
+    }
+    idField.value = id;
+    
+    nameInput.value = manager.manager_name || '';
+    if (emailInput) emailInput.value = manager.email || '';
+    if (phoneInput) phoneInput.value = manager.phone || '';
+    
+    populateManagerWarehouseOptions(manager.warehouse_id);
+    
+    modal.style.display = 'flex';
 }
 window.openEditManagerModal = openEditManagerModal;
 
-
-async function handleAddManager(event) {
+async function handleManagerSubmit(event) {
     event.preventDefault();
+    
+    const nameInput = document.getElementById('managerName');
+    const emailInput = document.getElementById('managerEmail');
+    const phoneInput = document.getElementById('managerPhone');
+    const warehouseSelect = document.getElementById('managerWarehouse');
+    const idField = document.getElementById('editManagerId');
+    
+    if (!nameInput || !warehouseSelect) {
+        showToast('Manager form not found. Please refresh the page.', 'error', 4000);
+        return;
+    }
+    
+    if (!nameInput.value.trim()) {
+        showToast('Manager name is required', 'warning', 3000);
+        nameInput.focus();
+        return;
+    }
+    
+    if (!warehouseSelect.value) {
+        showToast('Please select a warehouse for the manager', 'warning', 3000);
+        warehouseSelect.focus();
+        return;
+    }
+    
     const formData = {
-        manager_name: document.getElementById('addManagerName').value.trim(),
-        warehouse_id: parseInt(document.getElementById('addManagerWarehouse').value),
-        email: document.getElementById('addManagerEmail').value.trim() || null,
-        phone: document.getElementById('addManagerPhone').value.trim() || null,
+        manager_name: nameInput.value.trim(),
+        warehouse_id: parseInt(warehouseSelect.value),
+        email: emailInput && emailInput.value.trim() ? emailInput.value.trim() : null,
+        phone: phoneInput && phoneInput.value.trim() ? phoneInput.value.trim() : null,
     };
     
+    const isEdit = Boolean(idField && idField.value);
+    
     try {
-        const response = await fetch(`${CONFIG.apiUrl}/managers`, {
-            method: 'POST',
+        const response = await fetch(isEdit ? `${CONFIG.apiUrl}/managers/${idField.value}` : `${CONFIG.apiUrl}/managers`, {
+            method: isEdit ? 'PUT' : 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(formData)
         });
         
-        if (!response.ok) throw new Error('Failed to save manager');
+        if (!response.ok) throw new Error(isEdit ? 'Failed to update manager' : 'Failed to save manager');
         
-        showToast('Manager created successfully!', 'success', 3000);
+        showToast(isEdit ? 'Manager updated successfully!' : 'Manager created successfully!', 'success', 3000);
         closeManagerModal();
         await loadManagers();
         loadManagersForCompany();
@@ -1755,39 +2071,10 @@ async function handleAddManager(event) {
         showToast(error.message, 'error', 6000);
     }
 }
-window.handleAddManager = handleAddManager;
-
-async function handleEditManager(event) {
-    event.preventDefault();
-    const id = document.getElementById('editManagerId').value;
-    const formData = {
-        manager_name: document.getElementById('editManagerName').value.trim(),
-        warehouse_id: parseInt(document.getElementById('editManagerWarehouse').value),
-        email: document.getElementById('editManagerEmail').value.trim() || null,
-        phone: document.getElementById('editManagerPhone').value.trim() || null,
-    };
-    
-    try {
-        const response = await fetch(`${CONFIG.apiUrl}/managers/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(formData)
-        });
-        
-        if (!response.ok) throw new Error('Failed to update manager');
-        
-        showToast('Manager updated successfully!', 'success', 3000);
-        closeManagerModal();
-        await loadManagers();
-        loadManagersForCompany();
-    } catch (error) {
-        showToast(error.message, 'error', 6000);
-    }
-}
-window.handleEditManager = handleEditManager;
+window.handleManagerSubmit = handleManagerSubmit;
 
 function editManager(id) {
-    openManagerModal(id);
+    openEditManagerModal(id);
 }
 window.editManager = editManager;
 
@@ -2207,32 +2494,20 @@ function updateWarehousesForOpenStockTake() {
 window.updateWarehousesForOpenStockTake = updateWarehousesForOpenStockTake;
 
 function validateManagerForWarehouse() {
-    const warehouseId = document.getElementById('openStockTakeWarehouse').value;
+    // Manager validation is optional - just hide the message
     const validationMsg = document.getElementById('managerValidationMessage');
-    
-    if (!validationMsg) return;
-    
-    if (!warehouseId) {
+    if (validationMsg) {
         validationMsg.style.display = 'none';
-        return;
-    }
-    
-    // Check if there are any managers for this warehouse
-    const warehouseManagers = managers.filter(m => m.warehouse_id == warehouseId && m.is_active !== 0);
-    
-    if (warehouseManagers.length === 0) {
-        validationMsg.style.display = 'block';
-        validationMsg.className = 'validation-message error';
-        validationMsg.innerHTML = '⚠️ No active managers found for this warehouse. Please add a manager in Setup before opening a stock take.';
-    } else {
-        validationMsg.style.display = 'block';
-        validationMsg.className = 'validation-message success';
-        validationMsg.innerHTML = `✅ ${warehouseManagers.length} manager(s) available for this warehouse: ${warehouseManagers.map(m => escapeHtml(m.manager_name)).join(', ')}`;
     }
 }
 window.validateManagerForWarehouse = validateManagerForWarehouse;
 
 async function openStockTake() {
+    if (currentRole !== 'manager') {
+        showToast('Only managers can open stock takes', 'error', 3000);
+        return;
+    }
+    
     const companyId = document.getElementById('openStockTakeCompany').value;
     const warehouseId = document.getElementById('openStockTakeWarehouse').value;
     
@@ -2241,16 +2516,9 @@ async function openStockTake() {
         return;
     }
     
-    // Validate that at least one manager exists for this warehouse
+    // Manager is optional - if one exists, use it, otherwise set to null
     const warehouseManagers = managers.filter(m => m.warehouse_id == warehouseId && m.is_active !== 0);
-    
-    if (warehouseManagers.length === 0) {
-        showToast('Cannot open stock take: No active managers found for this warehouse. Please add a manager in Setup first.', 'error', 6000);
-        return;
-    }
-    
-    // Use the first active manager (or you could let the user choose later)
-    const managerId = warehouseManagers[0].id;
+    const managerId = warehouseManagers.length > 0 ? warehouseManagers[0].id : null;
     
     try {
         const response = await fetch(`${CONFIG.apiUrl}/stock-takes`, {
@@ -2274,7 +2542,10 @@ async function openStockTake() {
         updateStockTakeStatus();
         
         // Notify user and refresh open stock takes list if visible
-        alert(`✅ Stock take opened successfully!\n\nManager: ${warehouseManagers[0].manager_name}\n\nStock Take ID: ${currentStockTake.id}`);
+        const managerInfo = managerId && warehouseManagers.length > 0 
+            ? `\nManager: ${warehouseManagers[0].manager_name}` 
+            : '';
+        showToast(`Stock take opened successfully!${managerInfo}`, 'success', 5000);
         
         // If on open stock takes tab, refresh the list
         if (document.getElementById('openStockTakesTab')?.classList.contains('active')) {
@@ -2287,6 +2558,11 @@ async function openStockTake() {
 window.openStockTake = openStockTake;
 
 async function closeStockTake() {
+    if (currentRole !== 'manager') {
+        showToast('Only managers can close stock takes', 'error', 3000);
+        return;
+    }
+    
     if (!currentStockTake || !confirm('Are you sure you want to close this stock take?')) return;
     
     try {
@@ -2305,7 +2581,7 @@ async function closeStockTake() {
         
         updateStockTakeStatus();
         clearBinLocation();
-        alert('✅ Stock take closed successfully!');
+        showToast('Stock take closed successfully!', 'success', 3000);
     } catch (error) {
         showToast(error.message, 'error', 6000);
     }
@@ -2483,7 +2759,7 @@ async function handleCounterBinLocationScan() {
                 console.error('Error getting debug info:', e);
             }
             
-            throw new Error(`No open stock take found for this bin location.\n\nBin: ${binLocation.bin_code}\nWarehouse: ${binLocation.warehouse_name} (ID: ${warehouseId})\nCompany: ${binLocation.company_name} (ID: ${companyId})\n\nPlease ask a manager to open a stock take for this Company and Warehouse combination first.${debugInfo}`);
+            throw new Error(`No open stock take found for this bin location.\n\nBin: ${binLocation.bin_code}\nWarehouse: ${binLocation.warehouse_name} (ID: ${binLocation.warehouse_id})\nCompany: ${binLocation.company_name} (ID: ${binLocation.company_id})\n\nPlease ask a manager to open a stock take for this Company and Warehouse combination first.${debugInfo}`);
         }
         
         // Verify bin location belongs to the stock take's warehouse/company
@@ -2908,78 +3184,121 @@ async function loadActiveStockTake(companyId, warehouseId) {
 }
 
 // ========== SYSTEM ADMIN ==========
-// ADMIN_PASSWORD is defined at the top of the file
 
-function isAdminAuthenticated() {
-    return sessionStorage.getItem('adminAuthenticated') === 'true';
+function clearAdminSession() {
+    sessionStorage.removeItem('adminAuthenticated');
+    sessionStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+    sessionStorage.removeItem(ADMIN_TOKEN_EXPIRY_KEY);
 }
 
-function checkAdminPassword() {
-    console.log('=== checkAdminPassword called ===');
+function getAdminTokenData() {
+    const token = sessionStorage.getItem(ADMIN_TOKEN_STORAGE_KEY);
+    const expiryRaw = sessionStorage.getItem(ADMIN_TOKEN_EXPIRY_KEY);
+    const expiry = expiryRaw ? parseInt(expiryRaw, 10) : 0;
+    
+    if (!token || !expiry || Date.now() > expiry) {
+        if (token || expiry) {
+            clearAdminSession();
+        }
+        return { token: null, expiry: 0 };
+    }
+    
+    return { token, expiry };
+}
+
+function getAdminAuthHeaders(includeJson = false) {
+    const { token } = getAdminTokenData();
+    if (!token) return null;
+    
+    const headers = { 'Authorization': `Bearer ${token}` };
+    if (includeJson) {
+        headers['Content-Type'] = 'application/json';
+    }
+    return headers;
+}
+
+function handleAdminUnauthorized() {
+    clearAdminSession();
+    if (!adminSessionWarningShown) {
+        showToast('Admin session expired. Please log in again.', 'warning', 4000);
+        adminSessionWarningShown = true;
+    }
+    showAdminLogin();
+}
+
+function isAdminAuthenticated() {
+    const { token } = getAdminTokenData();
+    return !!token;
+}
+
+async function checkAdminPassword(event) {
+    if (event) event.preventDefault();
     
     const passwordInput = document.getElementById('adminPassword');
     const errorDiv = document.getElementById('adminPasswordError');
     
     if (!passwordInput) {
-        console.error('adminPassword input not found');
         alert('Password input not found. Please refresh the page.');
         return false;
     }
     
     const password = passwordInput.value.trim();
-    console.log('Password entered:', password);
-    console.log('Password length:', password.length);
-    console.log('Expected password:', ADMIN_PASSWORD);
-    console.log('Expected length:', ADMIN_PASSWORD.length);
-    console.log('Passwords match:', password === ADMIN_PASSWORD);
+    if (!password) {
+        if (errorDiv) {
+            errorDiv.textContent = 'Please enter the admin password.';
+            errorDiv.style.display = 'block';
+        }
+        showToast('Please enter the admin password', 'error', 3000);
+        return false;
+    }
     
-    if (password === ADMIN_PASSWORD) {
-        console.log('✓ Password correct, granting access');
+    try {
+        const response = await fetch(`${CONFIG.apiUrl}/admin/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password })
+        });
+        
+        if (!response.ok) {
+            let message = 'Failed to authenticate admin';
+            if (response.status === 401) {
+                message = 'Incorrect password. Please try again.';
+            }
+            throw new Error(message);
+        }
+        
+        const data = await response.json();
+        const expiresAt = data.expires_at ? parseInt(data.expires_at, 10) : (Date.now() + (data.expires_in || 3600) * 1000);
+        
         sessionStorage.setItem('adminAuthenticated', 'true');
-        
-        // Hide login form and show admin content
-        const loginDiv = document.getElementById('systemAdminLogin');
-        const contentDiv = document.getElementById('systemAdminContent');
-        
-        console.log('Login div found:', !!loginDiv);
-        console.log('Content div found:', !!contentDiv);
-        
-        if (loginDiv) {
-            loginDiv.style.display = 'none';
-            console.log('Login div hidden');
-        }
-        if (contentDiv) {
-            contentDiv.style.display = 'block';
-            console.log('Content div shown');
-        }
+        sessionStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, data.token);
+        sessionStorage.setItem(ADMIN_TOKEN_EXPIRY_KEY, String(expiresAt));
+        adminSessionWarningShown = false;
         
         if (errorDiv) errorDiv.style.display = 'none';
         passwordInput.value = '';
         
-        // Load admin data
         showAdminContent();
-        
         showToast('Admin access granted', 'success', 2000);
         return true;
-    } else {
-        console.log('✗ Password incorrect');
-        console.log('Entered:', JSON.stringify(password));
-        console.log('Expected:', JSON.stringify(ADMIN_PASSWORD));
+    } catch (error) {
         if (errorDiv) {
-            errorDiv.textContent = 'Incorrect password. Please try again.';
+            errorDiv.textContent = error.message;
             errorDiv.style.display = 'block';
         }
         passwordInput.value = '';
         setTimeout(() => {
             if (passwordInput) passwordInput.focus();
         }, 100);
-        showToast('Incorrect password', 'error', 3000);
+        showToast(error.message, 'error', 3000);
         return false;
     }
 }
 window.checkAdminPassword = checkAdminPassword;
 
 function showAdminLogin() {
+    clearAdminSession();
+    
     const loginDiv = document.getElementById('systemAdminLogin');
     const contentDiv = document.getElementById('systemAdminContent');
     
@@ -2988,6 +3307,11 @@ function showAdminLogin() {
 }
 
 function showAdminContent() {
+    if (!isAdminAuthenticated()) {
+        showAdminLogin();
+        return;
+    }
+    
     const loginDiv = document.getElementById('systemAdminLogin');
     const contentDiv = document.getElementById('systemAdminContent');
     
@@ -3004,7 +3328,20 @@ function showAdminContent() {
 // Manager-Company Access Management
 async function loadManagerCompanyAccess() {
     try {
-        const response = await fetch(`${CONFIG.apiUrl}/manager-company-access`);
+        const authHeaders = getAdminAuthHeaders();
+        if (!authHeaders) {
+            handleAdminUnauthorized();
+            return;
+        }
+        
+        const response = await fetch(`${CONFIG.apiUrl}/manager-company-access`, {
+            headers: authHeaders
+        });
+        
+        if (response.status === 401) {
+            handleAdminUnauthorized();
+            return;
+        }
         
         let accessList = [];
         if (response.ok) {
@@ -3069,7 +3406,20 @@ window.loadManagerCompanyAccess = loadManagerCompanyAccess;
 
 async function loadCounterCompanyAccess() {
     try {
-        const response = await fetch(`${CONFIG.apiUrl}/counter-company-access`);
+        const authHeaders = getAdminAuthHeaders();
+        if (!authHeaders) {
+            handleAdminUnauthorized();
+            return;
+        }
+        
+        const response = await fetch(`${CONFIG.apiUrl}/counter-company-access`, {
+            headers: authHeaders
+        });
+        
+        if (response.status === 401) {
+            handleAdminUnauthorized();
+            return;
+        }
         
         let accessList = [];
         if (response.ok) {
@@ -3184,14 +3534,25 @@ async function handleManagerCompanyAccessSubmit(event) {
     }
     
     try {
+        const headers = getAdminAuthHeaders(true);
+        if (!headers) {
+            handleAdminUnauthorized();
+            return;
+        }
+        
         const response = await fetch(`${CONFIG.apiUrl}/manager-company-access`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({
                 manager_id: parseInt(managerId),
                 company_id: parseInt(companyId)
             })
         });
+        
+        if (response.status === 401) {
+            handleAdminUnauthorized();
+            return;
+        }
         
         if (!response.ok) {
             if (response.status === 409) {
@@ -3218,9 +3579,21 @@ async function deleteManagerCompanyAccess(id) {
     if (!confirm('Are you sure you want to remove this access?')) return;
     
     try {
+        const headers = getAdminAuthHeaders();
+        if (!headers) {
+            handleAdminUnauthorized();
+            return;
+        }
+        
         const response = await fetch(`${CONFIG.apiUrl}/manager-company-access/${id}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers
         });
+        
+        if (response.status === 401) {
+            handleAdminUnauthorized();
+            return;
+        }
         
         if (!response.ok) throw new Error('Failed to delete access');
         
@@ -3280,14 +3653,25 @@ async function handleCounterCompanyAccessSubmit(event) {
     }
     
     try {
+        const headers = getAdminAuthHeaders(true);
+        if (!headers) {
+            handleAdminUnauthorized();
+            return;
+        }
+        
         const response = await fetch(`${CONFIG.apiUrl}/counter-company-access`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({
                 counter_email: counterEmail,
                 company_id: parseInt(companyId)
             })
         });
+        
+        if (response.status === 401) {
+            handleAdminUnauthorized();
+            return;
+        }
         
         if (!response.ok) {
             if (response.status === 409) {
@@ -3314,9 +3698,21 @@ async function deleteCounterCompanyAccess(id) {
     if (!confirm('Are you sure you want to remove this access?')) return;
     
     try {
+        const headers = getAdminAuthHeaders();
+        if (!headers) {
+            handleAdminUnauthorized();
+            return;
+        }
+        
         const response = await fetch(`${CONFIG.apiUrl}/counter-company-access/${id}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers
         });
+        
+        if (response.status === 401) {
+            handleAdminUnauthorized();
+            return;
+        }
         
         if (!response.ok) throw new Error('Failed to delete access');
         
@@ -3330,6 +3726,10 @@ window.deleteCounterCompanyAccess = deleteCounterCompanyAccess;
 
 // ========== OPEN STOCK TAKES LIST ==========
 async function loadOpenStockTakes() {
+    if (currentRole !== 'manager') {
+        return;
+    }
+    
     try {
         const response = await fetch(`${CONFIG.apiUrl}/stock-takes?status=open`);
         
@@ -3375,6 +3775,11 @@ async function loadOpenStockTakes() {
 window.loadOpenStockTakes = loadOpenStockTakes;
 
 async function openExistingStockTake(stockTakeId) {
+    if (currentRole !== 'manager') {
+        showToast('Only managers can open stock takes', 'error', 3000);
+        return;
+    }
+    
     try {
         const response = await fetch(`${CONFIG.apiUrl}/stock-takes/${stockTakeId}`);
         
@@ -3399,6 +3804,11 @@ async function openExistingStockTake(stockTakeId) {
 window.openExistingStockTake = openExistingStockTake;
 
 async function closeStockTakeById(stockTakeId) {
+    if (currentRole !== 'manager') {
+        showToast('Only managers can close stock takes', 'error', 3000);
+        return;
+    }
+    
     if (!confirm('Are you sure you want to close this stock take?')) return;
     
     try {
@@ -3420,7 +3830,7 @@ async function closeStockTakeById(stockTakeId) {
             clearBinLocation();
         }
         
-        alert('✅ Stock take closed successfully!');
+        showToast('Stock take closed successfully!', 'success', 3000);
         loadOpenStockTakes();
     } catch (error) {
         showToast(error.message, 'error', 6000);

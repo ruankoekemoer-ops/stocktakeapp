@@ -151,6 +151,8 @@ async function signOut() {
             // Email-based sign out
             sessionStorage.removeItem('loggedInUserEmail');
             sessionStorage.removeItem('adminAuthenticated'); // Also clear admin auth
+            sessionStorage.removeItem('adminAuthToken');
+            sessionStorage.removeItem('adminAuthExpiry');
             currentUser = null;
             updateUIForUser(null);
             
@@ -171,6 +173,9 @@ async function signOut() {
                 });
             }
             
+            sessionStorage.removeItem('adminAuthenticated');
+            sessionStorage.removeItem('adminAuthToken');
+            sessionStorage.removeItem('adminAuthExpiry');
             currentUser = null;
             updateUIForUser(null);
             
@@ -247,6 +252,12 @@ function updateUIForUser(user) {
             authButton.className = 'btn btn-secondary btn-small';
         }
         
+        // Show logout button in header
+        const logoutButton = document.getElementById('logoutButton');
+        if (logoutButton) {
+            logoutButton.style.display = 'inline-block';
+        }
+        
         if (userInfo) {
             userInfo.innerHTML = `
                 <div class="user-display">
@@ -266,6 +277,12 @@ function updateUIForUser(user) {
             }
             authButton.onclick = signIn;
             authButton.className = 'btn btn-primary btn-small';
+        }
+        
+        // Hide logout button
+        const logoutButton = document.getElementById('logoutButton');
+        if (logoutButton) {
+            logoutButton.style.display = 'none';
         }
         
         if (userInfo) {

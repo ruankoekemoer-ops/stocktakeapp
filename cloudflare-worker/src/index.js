@@ -21,7 +21,121 @@ export default {
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Admin-Token',
+    };
+
+    const textEncoder = new TextEncoder();
+    const DEFAULT_ADMIN_PASSWORD = 'admin';
+
+    const base64UrlEncode = (str) => {
+      return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+    };
+
+    const base64UrlEncodeBytes = (bytes) => {
+      let binary = '';
+      bytes.forEach(b => {
+        binary += String.fromCharCode(b);
+      });
+      return base64UrlEncode(binary);
+    };
+
+    const base64UrlDecode = (str) => {
+      let normalized = str.replace(/-/g, '+').replace(/_/g, '/');
+      while (normalized.length % 4) {
+        normalized += '=';
+      }
+      return atob(normalized);
+    };
+
+    const getAdminSecret = (env) => {
+      return env.ADMIN_JWT_SECRET || env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
+    };
+
+    const signAdminToken = async (data, secret) => {
+      const key = await crypto.subtle.importKey(
+        'raw',
+        textEncoder.encode(secret),
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+      );
+      const signature = await crypto.subtle.sign('HMAC', key, textEncoder.encode(data));
+      return base64UrlEncodeBytes(new Uint8Array(signature));
+    };
+
+    const generateAdminToken = async (env) => {
+      const secret = getAdminSecret(env);
+      if (!secret) {
+        throw new Error('Admin secret not configured');
+      }
+      
+      const header = base64UrlEncode(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+      const expiresInSeconds = 60 * 60; // 1 hour
+      const exp = Math.floor(Date.now() / 1000) + expiresInSeconds;
+      const payload = base64UrlEncode(JSON.stringify({ exp }));
+      const signature = await signAdminToken(`${header}.${payload}`, secret);
+      
+      return {
+        token: `${header}.${payload}.${signature}`,
+        expiresIn: expiresInSeconds,
+        expiresAt: exp * 1000,
+      };
+    };
+
+    const verifyAdminToken = async (token, env) => {
+      try {
+        const secret = getAdminSecret(env);
+        if (!secret) return null;
+        
+        const parts = token.split('.');
+        if (parts.length !== 3) return null;
+        
+        const [header, payload, signature] = parts;
+        const expectedSignature = await signAdminToken(`${header}.${payload}`, secret);
+        if (signature !== expectedSignature) {
+          return null;
+        }
+        
+        const payloadData = JSON.parse(base64UrlDecode(payload));
+        if (payloadData.exp && Math.floor(Date.now() / 1000) > payloadData.exp) {
+          return null;
+        }
+        
+        return payloadData;
+      } catch (error) {
+        return null;
+      }
+    };
+
+    const extractAdminToken = (request) => {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        return authHeader.slice(7).trim();
+      }
+      const altHeader = request.headers.get('X-Admin-Token');
+      if (altHeader) {
+        return altHeader.trim();
+      }
+      return null;
+    };
+
+    const adminUnauthorizedResponse = () => new Response(JSON.stringify({ error: 'Admin authorization required' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
+    const ensureAdminAuthorized = async (request, env) => {
+      const token = extractAdminToken(request);
+      if (!token) {
+        return { authorized: false, response: adminUnauthorizedResponse() };
+      }
+      
+      const payload = await verifyAdminToken(token, env);
+      if (!payload) {
+        return { authorized: false, response: adminUnauthorizedResponse() };
+      }
+      
+      return { authorized: true, payload };
     };
 
     // Handle OPTIONS preflight
@@ -70,6 +184,23 @@ export default {
       });
     }
 
+    if (path === '/js/auth.js') {
+      if (staticFilesModule?.authJs) {
+        return new Response(staticFilesModule.authJs, {
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/javascript; charset=utf-8',
+          },
+        });
+      }
+      return new Response('// Auth.js not built yet - run: node build-static-files.js', {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/javascript; charset=utf-8',
+        },
+      });
+    }
+
     if (path === '/js/app.js') {
       if (staticFilesModule?.appJs) {
         return new Response(staticFilesModule.appJs, {
@@ -107,6 +238,35 @@ export default {
 
     // API Routes
     try {
+      if (path === '/api/admin/login' && request.method === 'POST') {
+        const data = await request.json().catch(() => ({}));
+        const password = (data.password || '').toString().trim();
+        
+        if (!password) {
+          return new Response(JSON.stringify({ error: 'Password is required' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        const expectedPassword = env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
+        if (password !== expectedPassword) {
+          return new Response(JSON.stringify({ error: 'Invalid password' }), {
+            status: 401,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        const tokenInfo = await generateAdminToken(env);
+        return new Response(JSON.stringify({
+          token: tokenInfo.token,
+          expires_in: tokenInfo.expiresIn,
+          expires_at: tokenInfo.expiresAt,
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       // ========== COMPANIES ==========
       if (path === '/api/companies' && request.method === 'GET') {
         const result = await env.DB.prepare('SELECT * FROM companies ORDER BY company_name').all();
@@ -449,27 +609,15 @@ export default {
           });
         }
         
-        // Validate that at least one active manager exists for this warehouse
-        const managers = await env.DB.prepare(
-          'SELECT id FROM warehouse_managers WHERE warehouse_id = ? AND is_active = 1'
-        ).bind(data.warehouse_id).all();
+        // Manager is optional - if provided, validate it; otherwise set to null
+        let managerId = data.opened_by_manager_id || null;
         
-        if (!managers.results || managers.results.length === 0) {
-          return new Response(JSON.stringify({ 
-            error: 'No active managers found for this warehouse. Please add a manager before opening a stock take.' 
-          }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-        
-        // If no manager_id provided, use the first active manager
-        let managerId = data.opened_by_manager_id;
-        if (!managerId) {
-          managerId = managers.results[0].id;
-        } else {
-          // Validate the provided manager belongs to this warehouse
-          const manager = managers.results.find(m => m.id === managerId);
+        if (managerId) {
+          // Validate the provided manager belongs to this warehouse and is active
+          const manager = await env.DB.prepare(
+            'SELECT id FROM warehouse_managers WHERE id = ? AND warehouse_id = ? AND is_active = 1'
+          ).bind(managerId, data.warehouse_id).first();
+          
           if (!manager) {
             return new Response(JSON.stringify({ 
               error: 'The specified manager does not belong to this warehouse or is not active.' 
@@ -985,6 +1133,10 @@ export default {
 
       // ========== MANAGER-COMPANY ACCESS ENDPOINTS ==========
       if (path === '/api/manager-company-access' && request.method === 'GET') {
+        const adminAuth = await ensureAdminAuthorized(request, env);
+        if (!adminAuth.authorized) {
+          return adminAuth.response;
+        }
         try {
           const url = new URL(request.url);
           const managerId = url.searchParams.get('manager_id');
@@ -1025,6 +1177,10 @@ export default {
       }
 
       if (path === '/api/manager-company-access' && request.method === 'POST') {
+        const adminAuth = await ensureAdminAuthorized(request, env);
+        if (!adminAuth.authorized) {
+          return adminAuth.response;
+        }
         try {
           const body = await request.json();
           const { manager_id, company_id } = body;
@@ -1083,6 +1239,10 @@ export default {
       }
 
       if (path.startsWith('/api/manager-company-access/') && request.method === 'DELETE') {
+        const adminAuth = await ensureAdminAuthorized(request, env);
+        if (!adminAuth.authorized) {
+          return adminAuth.response;
+        }
         try {
           const id = path.split('/').pop();
           const result = await env.DB.prepare('DELETE FROM manager_company_access WHERE id = ?')
@@ -1109,6 +1269,10 @@ export default {
 
       // ========== COUNTER-COMPANY ACCESS ENDPOINTS ==========
       if (path === '/api/counter-company-access' && request.method === 'GET') {
+        const adminAuth = await ensureAdminAuthorized(request, env);
+        if (!adminAuth.authorized) {
+          return adminAuth.response;
+        }
         try {
           const url = new URL(request.url);
           const counterEmail = url.searchParams.get('counter_email');
@@ -1147,6 +1311,10 @@ export default {
       }
 
       if (path === '/api/counter-company-access' && request.method === 'POST') {
+        const adminAuth = await ensureAdminAuthorized(request, env);
+        if (!adminAuth.authorized) {
+          return adminAuth.response;
+        }
         try {
           const body = await request.json();
           const { counter_email, company_id } = body;
@@ -1212,6 +1380,10 @@ export default {
       }
 
       if (path.startsWith('/api/counter-company-access/') && request.method === 'DELETE') {
+        const adminAuth = await ensureAdminAuthorized(request, env);
+        if (!adminAuth.authorized) {
+          return adminAuth.response;
+        }
         try {
           const id = path.split('/').pop();
           const result = await env.DB.prepare('DELETE FROM counter_company_access WHERE id = ?')
